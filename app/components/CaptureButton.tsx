@@ -3,12 +3,13 @@ import { Pressable, View, StyleSheet } from 'react-native';
 
 interface CaptureButtonProps {
   disabled?: boolean;
+  recording?: boolean;
   onPressIn?: () => void;
   onPressOut?: () => void;
   onPress?: () => void;
 }
 
-const CaptureButton: React.FC<CaptureButtonProps> = ({ disabled, onPressIn, onPressOut, onPress }) => {
+const CaptureButton: React.FC<CaptureButtonProps> = ({ disabled, recording = false, onPressIn, onPressOut, onPress }) => {
   return (
     <Pressable
       accessibilityRole="button"
@@ -22,8 +23,8 @@ const CaptureButton: React.FC<CaptureButtonProps> = ({ disabled, onPressIn, onPr
         disabled && { opacity: 0.4 }
       ]}
     >
-      <View style={styles.outerRing}>
-        <View style={styles.innerCircle} />
+      <View style={[styles.outerRing, recording && styles.outerRingActive]}>
+        <View style={[styles.innerCircle, recording && styles.innerCircleActive]} />
       </View>
     </Pressable>
   );
@@ -43,11 +44,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center'
   },
+  outerRingActive: {
+    borderColor: '#FF3B30'
+  },
   innerCircle: {
     width: 60,
     height: 60,
     borderRadius: 30,
     backgroundColor: '#FF3B30'
+  },
+  innerCircleActive: {
+    borderRadius: 16
   }
 });
 

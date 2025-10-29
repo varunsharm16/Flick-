@@ -12,7 +12,6 @@ import DrillDetailScreen from './drill-detail';
 import RecordScreen from './record';
 import ProgressScreen from './progress';
 import ProfileScreen from './profile';
-import SettingsScreen from './settings';
 
 const queryClient = new QueryClient();
 
@@ -21,7 +20,6 @@ type TabParamList = {
   Record: undefined;
   Progress: undefined;
   Profile: undefined;
-  Settings: undefined;
 };
 
 type DrillsStackParamList = {
@@ -43,7 +41,6 @@ const TAB_ICONS: Record<keyof TabParamList, string> = {
   Record: 'videocam-outline',
   Progress: 'stats-chart-outline',
   Profile: 'person-circle-outline',
-  Settings: 'settings-outline',
 };
 
 function DrillsStack() {
@@ -91,7 +88,6 @@ function MainTabs() {
       <Tab.Screen name="Record" component={RecordScreen} />
       <Tab.Screen name="Progress" component={ProgressScreen} />
       <Tab.Screen name="Profile" component={ProfileScreen} />
-      <Tab.Screen name="Settings" component={SettingsScreen} />
     </Tab.Navigator>
   );
 }

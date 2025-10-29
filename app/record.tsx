@@ -7,16 +7,17 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
-  View
+  View,
+  ToastAndroid,
 } from 'react-native';
 // import { Camera, CameraType } from 'expo-camera';
 import { CameraView, useCameraPermissions, useMicrophonePermissions } from 'expo-camera';
 
 
 import * as FileSystem from 'expo-file-system';
-import { ToastAndroid } from 'react-native';
 import { useMutation } from '@tanstack/react-query';
 import { useNavigation } from '@react-navigation/native';
+import Ionicons from '@expo/vector-icons/Ionicons';
 
 import CaptureButton from './components/CaptureButton';
 import { api } from './api/client';
@@ -32,9 +33,9 @@ const RecordScreen: React.FC = () => {
   const navigation = useNavigation();
 
   const analyzeMutation = useMutation({
-  mutationFn: async (uri: string) => {
-    await FileSystem.getInfoAsync(uri);
-    return api.postAnalyze(uri);
+    mutationFn: async (uri: string) => {
+      await FileSystem.getInfoAsync(uri);
+      return api.postAnalyze(uri);
     },
     onSuccess: () => {
       const message = 'Analysis queued. Check back in a minute.';
@@ -44,6 +45,7 @@ const RecordScreen: React.FC = () => {
         Alert.alert('Flick', message);
       }
       setModalVisible(false);
+      setVideoUri(null);
       navigation.navigate('Progress' as never);
     },
     onError: () => {
@@ -57,17 +59,31 @@ const RecordScreen: React.FC = () => {
   }, [cameraPermission, micPermission]);
 
 
+  const toggleCamera = () => {
+    setCameraType(prev => (prev === 'back' ? 'front' : 'back'));
+  };
+
   const handleRecord = async () => {
     try {
       if (!cameraPermission?.granted || !micPermission?.granted) {
-        ToastAndroid.show('Camera or mic permission not granted', ToastAndroid.SHORT);
+        const message = 'Camera or mic permission not granted';
+        if (Platform.OS === 'android') {
+          ToastAndroid.show(message, ToastAndroid.SHORT);
+        } else {
+          Alert.alert('Flick', message);
+        }
         return;
       }
 
       if (recording) {
         await cameraRef.current?.stopRecording();
         setRecording(false);
-        ToastAndroid.show('Recording stopped', ToastAndroid.SHORT);
+        const message = 'Recording stopped';
+        if (Platform.OS === 'android') {
+          ToastAndroid.show(message, ToastAndroid.SHORT);
+        } else {
+          Alert.alert('Flick', message);
+        }
         return;
       }
 
@@ -88,13 +104,24 @@ const RecordScreen: React.FC = () => {
 
       if (video?.uri) {
         setVideoUri(video.uri);
-        ToastAndroid.show('Recording saved', ToastAndroid.SHORT);
+        setModalVisible(true);
+        const message = 'Recording saved';
+        if (Platform.OS === 'android') {
+          ToastAndroid.show(message, ToastAndroid.SHORT);
+        } else {
+          Alert.alert('Flick', message);
+        }
       } else {
         throw new Error('No video URI');
       }
     } catch (err) {
       console.error('Recording error:', err);
-      ToastAndroid.show('Recording error, unable to capture video', ToastAndroid.SHORT);
+      const message = 'Recording error, unable to capture video';
+      if (Platform.OS === 'android') {
+        ToastAndroid.show(message, ToastAndroid.SHORT);
+      } else {
+        Alert.alert('Flick', message);
+      }
       setRecording(false);
     }
   };
@@ -122,19 +149,22 @@ const RecordScreen: React.FC = () => {
 
   return (
     <View style={styles.container}>
-      <CameraView
-        ref={cameraRef}
-        style={styles.camera}
-        facing={cameraType}      // 'front' | 'back'
-        mode="video"             // optional; defaults are OK too
-      />
-
-
-
-
+      <View style={styles.cameraWrapper}>
+        <CameraView
+          ref={cameraRef}
+          style={styles.camera}
+          facing={cameraType}
+          mode="video"
+        />
+        <View style={styles.topControls}>
+          <TouchableOpacity style={styles.iconButton} onPress={toggleCamera}>
+            <Ionicons name="camera-reverse-outline" size={24} color="#fff" />
+          </TouchableOpacity>
+        </View>
+      </View>
 
       <View style={styles.captureContainer}>
-        <CaptureButton onPress={handleRecord} disabled={recording} />
+        <CaptureButton onPress={handleRecord} recording={recording} />
         {recording && <Text style={styles.recordingLabel}>Recording...</Text>}
       </View>
 
@@ -216,6 +246,22 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 48,
     width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  cameraWrapper: {
+    flex: 1,
+  },
+  topControls: {
+    position: 'absolute',
+    top: 20,
+    right: 20,
+  },
+  iconButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#00000066',
     alignItems: 'center',
     justifyContent: 'center'
   },
