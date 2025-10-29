@@ -16,9 +16,35 @@ import SettingsScreen from './settings';
 
 const queryClient = new QueryClient();
 
-const Tab = createBottomTabNavigator();
-const DrillsStackNavigator = createNativeStackNavigator();
-const RootStack = createNativeStackNavigator();
+type TabParamList = {
+  Drills: undefined;
+  Record: undefined;
+  Progress: undefined;
+  Profile: undefined;
+  Settings: undefined;
+};
+
+type DrillsStackParamList = {
+  Drills: undefined;
+  DrillDetail: { id: string };
+};
+
+type RootStackParamList = {
+  Splash: undefined;
+  Main: undefined;
+};
+
+const Tab = createBottomTabNavigator<TabParamList>();
+const DrillsStackNavigator = createNativeStackNavigator<DrillsStackParamList>();
+const RootStack = createNativeStackNavigator<RootStackParamList>();
+
+const TAB_ICONS: Record<keyof TabParamList, string> = {
+  Drills: 'barbell-outline',
+  Record: 'videocam-outline',
+  Progress: 'stats-chart-outline',
+  Profile: 'person-circle-outline',
+  Settings: 'settings-outline',
+};
 
 function DrillsStack() {
   return (
@@ -53,14 +79,8 @@ function MainTabs() {
     <Tab.Navigator
       screenOptions={({ route }) => ({
         tabBarIcon: ({ color, size }) => {
-          const icons: Record<string, string> = {
-            Drills: 'barbell-outline',
-            Record: 'videocam-outline',
-            Progress: 'stats-chart-outline',
-            Profile: 'person-circle-outline',
-            Settings: 'settings-outline',
-          };
-          return <Ionicons name={icons[route.name] || 'ellipse-outline'} size={size} color={color} />;
+          const iconName = TAB_ICONS[route.name as keyof TabParamList] ?? 'ellipse-outline';
+          return <Ionicons name={iconName} size={size} color={color} />;
         },
         tabBarActiveTintColor: '#FF6F3C',
         tabBarInactiveTintColor: 'gray',
