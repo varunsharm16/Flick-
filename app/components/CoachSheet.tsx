@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import {
   Animated,
   Dimensions,
@@ -10,10 +10,12 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  View
+  View,
 } from 'react-native';
 
-interface ChatMessage {
+import { AppTheme, AppThemeColors, useAppTheme } from '@/hooks/useAppTheme';
+
+export interface ChatMessage {
   id: string;
   role: 'user' | 'assistant';
   text: string;
@@ -29,6 +31,104 @@ interface CoachSheetProps {
   sending?: boolean;
 }
 
+const createStyles = (colors: AppThemeColors, spacing: AppTheme['spacing'], typography: AppTheme['typography']) =>
+  StyleSheet.create({
+    overlay: {
+      flex: 1,
+      flexDirection: 'row',
+      backgroundColor: colors.overlay,
+    },
+    backdrop: {
+      flex: 1,
+    },
+    sheet: {
+      width: '80%',
+      backgroundColor: colors.surface,
+      paddingTop: spacing.section * 1.5,
+      paddingHorizontal: spacing.section,
+      paddingBottom: spacing.section,
+      borderTopLeftRadius: spacing.cardRadius + 8,
+      borderBottomLeftRadius: spacing.cardRadius + 8,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.border,
+      shadowColor: '#00000030',
+      shadowOpacity: 0.2,
+      shadowRadius: 12,
+      elevation: 6,
+    },
+    header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginBottom: spacing.itemGap,
+    },
+    headerTitle: {
+      fontSize: typography.subtitle,
+      fontWeight: '700',
+      color: colors.text,
+    },
+    close: {
+      color: colors.accent,
+      fontWeight: '600',
+    },
+    messageList: {
+      flex: 1,
+    },
+    messageBubble: {
+      borderRadius: spacing.cardRadius,
+      padding: spacing.itemGap,
+      marginBottom: spacing.itemGap,
+      maxWidth: '85%',
+    },
+    assistantBubble: {
+      backgroundColor: colors.surfaceElevated,
+      alignSelf: 'flex-start',
+    },
+    userBubble: {
+      backgroundColor: colors.accent,
+      alignSelf: 'flex-end',
+    },
+    messageText: {
+      fontSize: typography.body,
+    },
+    assistantText: {
+      color: colors.text,
+    },
+    userText: {
+      color: '#fff',
+    },
+    inputRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.itemGap / 2,
+      marginTop: spacing.itemGap,
+    },
+    input: {
+      flex: 1,
+      backgroundColor: colors.surfaceElevated,
+      borderRadius: 999,
+      paddingHorizontal: spacing.section,
+      paddingVertical: 12,
+      fontSize: typography.body,
+      color: colors.text,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.border,
+    },
+    sendBtn: {
+      backgroundColor: colors.accent,
+      paddingHorizontal: spacing.itemGap * 1.6,
+      paddingVertical: 12,
+      borderRadius: 999,
+    },
+    sendDisabled: {
+      backgroundColor: colors.accentSoft,
+    },
+    sendText: {
+      color: '#fff',
+      fontWeight: '600',
+    },
+  });
+
 const CoachSheet: React.FC<CoachSheetProps> = ({
   visible,
   onClose,
@@ -36,15 +136,17 @@ const CoachSheet: React.FC<CoachSheetProps> = ({
   input,
   onInputChange,
   onSend,
-  sending
+  sending,
 }) => {
+  const { colors, spacing, typography } = useAppTheme();
+  const styles = useMemo(() => createStyles(colors, spacing, typography), [colors, spacing, typography]);
   const slideAnim = useRef(new Animated.Value(Dimensions.get('window').width)).current;
 
   useEffect(() => {
     Animated.timing(slideAnim, {
       toValue: visible ? 0 : Dimensions.get('window').width,
       duration: 250,
-      useNativeDriver: true
+      useNativeDriver: true,
     }).start();
   }, [visible, slideAnim]);
 
@@ -61,20 +163,20 @@ const CoachSheet: React.FC<CoachSheetProps> = ({
           </View>
           <FlatList
             style={styles.messageList}
-            contentContainerStyle={{ paddingBottom: 16 }}
+            contentContainerStyle={{ paddingBottom: spacing.itemGap }}
             data={messages}
-            keyExtractor={item => item.id}
+            keyExtractor={(item) => item.id}
             renderItem={({ item }) => (
               <View
                 style={[
                   styles.messageBubble,
-                  item.role === 'assistant' ? styles.assistantBubble : styles.userBubble
+                  item.role === 'assistant' ? styles.assistantBubble : styles.userBubble,
                 ]}
               >
                 <Text
                   style={[
                     styles.messageText,
-                    item.role === 'assistant' ? styles.assistantText : styles.userText
+                    item.role === 'assistant' ? styles.assistantText : styles.userText,
                   ]}
                 >
                   {item.text}
@@ -87,7 +189,7 @@ const CoachSheet: React.FC<CoachSheetProps> = ({
               <TextInput
                 style={styles.input}
                 placeholder="Ask your AI coach..."
-                placeholderTextColor="#9e9ea7"
+                placeholderTextColor={colors.muted}
                 value={input}
                 onChangeText={onInputChange}
                 editable={!sending}
@@ -107,97 +209,4 @@ const CoachSheet: React.FC<CoachSheetProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    flexDirection: 'row',
-    backgroundColor: 'rgba(0,0,0,0.3)'
-  },
-  backdrop: {
-    flex: 1
-  },
-  sheet: {
-    width: '80%',
-    backgroundColor: '#fff',
-    paddingTop: 40,
-    paddingHorizontal: 16,
-    paddingBottom: 16,
-    borderTopLeftRadius: 24,
-    borderBottomLeftRadius: 24,
-    shadowColor: '#00000020',
-    shadowOpacity: 0.2,
-    shadowRadius: 12,
-    elevation: 6
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 16
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#1c1c1e'
-  },
-  close: {
-    color: '#FF6F3C',
-    fontWeight: '600'
-  },
-  messageList: {
-    flex: 1
-  },
-  messageBubble: {
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 12,
-    maxWidth: '85%'
-  },
-  assistantBubble: {
-    backgroundColor: '#F5F5F8',
-    alignSelf: 'flex-start'
-  },
-  userBubble: {
-    backgroundColor: '#FF6F3C',
-    alignSelf: 'flex-end'
-  },
-  messageText: {
-    fontSize: 15
-  },
-  assistantText: {
-    color: '#1f1f24'
-  },
-  userText: {
-    color: '#fff'
-  },
-  inputRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginTop: 8
-  },
-  input: {
-    flex: 1,
-    backgroundColor: '#f0f0f3',
-    borderRadius: 999,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    fontSize: 15
-  },
-  sendBtn: {
-    backgroundColor: '#FF6F3C',
-    paddingHorizontal: 18,
-    paddingVertical: 12,
-    borderRadius: 999
-  },
-  sendDisabled: {
-    backgroundColor: '#FFD2C2'
-  },
-  sendText: {
-    color: '#fff',
-    fontWeight: '600'
-  }
-});
-
-export type { ChatMessage };
 export default CoachSheet;

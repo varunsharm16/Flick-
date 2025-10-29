@@ -1,53 +1,66 @@
 /**
- * Below are the colors that are used in the app. The colors are defined in the light and dark mode.
- * There are many other ways to style your app. For example, [Nativewind](https://www.nativewind.dev/), [Tamagui](https://tamagui.dev/), [unistyles](https://reactnativeunistyles.vercel.app), etc.
+ * Central theme tokens for the Flick app. Colors are provided for light and dark
+ * mode along with shared spacing and typography scales. All screens and
+ * components should consume these tokens to ensure a consistent look and feel.
  */
 
-import { Platform } from 'react-native';
+export type ColorSchemeKey = 'light' | 'dark';
 
-const tintColorLight = '#0a7ea4';
-const tintColorDark = '#fff';
+export type AppColorPalette = typeof Colors.light;
 
 export const Colors = {
   light: {
     text: '#11181C',
-    background: '#fff',
-    tint: tintColorLight,
+    muted: '#6C6C70',
+    background: '#F2F2F7',
+    surface: '#FFFFFF',
+    surfaceElevated: '#FFFFFF',
+    border: '#E5E5EA',
+    tint: '#FF6F3C',
+    accent: '#FF6F3C',
+    accentSoft: '#FFD4C4',
+    success: '#34C759',
+    warning: '#FF9500',
+    danger: '#FF3B30',
     icon: '#687076',
     tabIconDefault: '#687076',
-    tabIconSelected: tintColorLight,
+    tabIconSelected: '#FF6F3C',
+    overlay: 'rgba(0,0,0,0.08)',
   },
   dark: {
     text: '#ECEDEE',
-    background: '#151718',
-    tint: tintColorDark,
+    muted: '#9BA1A6',
+    background: '#0F1013',
+    surface: '#1C1D21',
+    surfaceElevated: '#24252B',
+    border: '#2E3036',
+    tint: '#FF7A45',
+    accent: '#FF7A45',
+    accentSoft: '#402418',
+    success: '#3DDC84',
+    warning: '#FFB648',
+    danger: '#FF6B6B',
     icon: '#9BA1A6',
     tabIconDefault: '#9BA1A6',
-    tabIconSelected: tintColorDark,
+    tabIconSelected: '#FF7A45',
+    overlay: 'rgba(0,0,0,0.4)',
   },
 };
 
-export const Fonts = Platform.select({
-  ios: {
-    /** iOS `UIFontDescriptorSystemDesignDefault` */
-    sans: 'system-ui',
-    /** iOS `UIFontDescriptorSystemDesignSerif` */
-    serif: 'ui-serif',
-    /** iOS `UIFontDescriptorSystemDesignRounded` */
-    rounded: 'ui-rounded',
-    /** iOS `UIFontDescriptorSystemDesignMonospaced` */
-    mono: 'ui-monospace',
-  },
-  default: {
-    sans: 'normal',
-    serif: 'serif',
-    rounded: 'normal',
-    mono: 'monospace',
-  },
-  web: {
-    sans: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
-    serif: "Georgia, 'Times New Roman', serif",
-    rounded: "'SF Pro Rounded', 'Hiragino Maru Gothic ProN', Meiryo, 'MS PGothic', sans-serif",
-    mono: "SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
-  },
-});
+export const Spacing = {
+  screenHorizontal: 20,
+  screenVertical: 24,
+  section: 16,
+  itemGap: 12,
+  cardRadius: 16,
+};
+
+export const Typography = {
+  headline: 28,
+  title: 24,
+  subtitle: 18,
+  body: 16,
+  small: 14,
+  caption: 12,
+};
+

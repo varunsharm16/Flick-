@@ -1,30 +1,98 @@
 import React, { useMemo } from 'react';
-import {
-  ActivityIndicator,
-  SectionList,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View
-} from 'react-native';
+import { ActivityIndicator, SectionList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useQuery } from '@tanstack/react-query';
 
 import { api } from './api/client';
+import { DrillsStackParamList } from './navigation/types';
+import { AppTheme, AppThemeColors, useAppTheme } from '@/hooks/useAppTheme';
 
-const difficultyColors: Record<string, string> = {
-  Beginner: '#34C759',
-  Intermediate: '#FF9500',
-  Advanced: '#FF3B30'
+const createStyles = (colors: AppThemeColors, spacing: AppTheme['spacing'], typography: AppTheme['typography']) =>
+  StyleSheet.create({
+    listContent: {
+      paddingBottom: spacing.section * 6,
+    },
+    loader: {
+      marginTop: spacing.screenVertical * 1.5,
+    },
+    sectionHeader: {
+      fontSize: typography.subtitle,
+      fontWeight: '700',
+      marginBottom: spacing.itemGap,
+      marginTop: spacing.section,
+      color: colors.text,
+    },
+    card: {
+      backgroundColor: colors.surface,
+      borderRadius: spacing.cardRadius,
+      padding: 16,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.itemGap,
+      marginBottom: spacing.itemGap,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.border,
+    },
+    title: {
+      fontSize: typography.subtitle,
+      fontWeight: '600',
+      color: colors.text,
+    },
+    metaRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.itemGap,
+      flexWrap: 'wrap',
+    },
+    metaText: {
+      color: colors.muted,
+      fontSize: typography.small,
+    },
+    badge: {
+      paddingHorizontal: 12,
+      paddingVertical: 4,
+      borderRadius: 999,
+    },
+    badgeText: {
+      color: '#fff',
+      fontWeight: '600',
+      fontSize: typography.caption,
+    },
+    ctaButton: {
+      backgroundColor: colors.accent,
+      paddingHorizontal: 18,
+      paddingVertical: 10,
+      borderRadius: spacing.cardRadius,
+    },
+    ctaText: {
+      color: '#fff',
+      fontWeight: '700',
+    },
+  });
+
+const getDifficultyColor = (difficulty: string, colors: AppThemeColors) => {
+  switch (difficulty) {
+    case 'Beginner':
+      return colors.success;
+    case 'Intermediate':
+      return colors.warning;
+    case 'Advanced':
+      return colors.danger;
+    default:
+      return colors.accent;
+  }
 };
 
 const DrillsScreen: React.FC = () => {
-  const navigation = useNavigation();
+  const navigation = useNavigation<NativeStackNavigationProp<DrillsStackParamList>>();
+  const { colors, sharedStyles, spacing, typography } = useAppTheme();
+  const styles = useMemo(() => createStyles(colors, spacing, typography), [colors, spacing, typography]);
+
   const { data, isLoading } = useQuery({
     queryKey: ['drills'],
     queryFn: api.getDrills,
   });
-
 
   const sections = useMemo(() => {
     if (!data) return [];
@@ -34,28 +102,28 @@ const DrillsScreen: React.FC = () => {
     }, {});
     return Object.entries(grouped).map(([category, drills]) => ({
       title: category,
-      data: drills
+      data: drills,
     }));
   }, [data]);
 
   return (
-    <View style={styles.container}>
+    <View style={sharedStyles.screen}>
       {isLoading ? (
-        <ActivityIndicator style={{ marginTop: 40 }} color="#FF6F3C" />
+        <ActivityIndicator style={styles.loader} color={colors.accent} />
       ) : (
         <SectionList
           sections={sections}
-          keyExtractor={item => item.id}
-          contentContainerStyle={styles.content}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={styles.listContent}
           renderSectionHeader={({ section }) => (
             <Text style={styles.sectionHeader}>{section.title}</Text>
           )}
           renderItem={({ item }) => (
             <View style={styles.card}>
-              <View style={{ flex: 1, gap: 8 }}>
+              <View style={{ flex: 1, gap: spacing.itemGap * 0.75 }}>
                 <Text style={styles.title}>{item.name}</Text>
                 <View style={styles.metaRow}>
-                  <View style={[styles.badge, { backgroundColor: difficultyColors[item.difficulty] }]}>
+                  <View style={[styles.badge, { backgroundColor: getDifficultyColor(item.difficulty, colors) }]}>
                     <Text style={styles.badgeText}>{item.difficulty}</Text>
                   </View>
                   <Text style={styles.metaText}>{item.minutes} min</Text>
@@ -63,8 +131,9 @@ const DrillsScreen: React.FC = () => {
                 </View>
               </View>
               <TouchableOpacity
+                accessibilityRole="button"
                 style={styles.ctaButton}
-                onPress={() => navigation.navigate('DrillDetail' as never, { id: item.id } as never)}
+                onPress={() => navigation.navigate('DrillDetail', { id: item.id })}
               >
                 <Text style={styles.ctaText}>Start</Text>
               </TouchableOpacity>
@@ -75,70 +144,5 @@ const DrillsScreen: React.FC = () => {
     </View>
   );
 };
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F2F2F7'
-  },
-  content: {
-    padding: 20,
-    paddingBottom: 120
-  },
-  sectionHeader: {
-    fontSize: 20,
-    fontWeight: '700',
-    marginBottom: 12,
-    marginTop: 16,
-    color: '#1c1c1e'
-  },
-  card: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    marginBottom: 12,
-    shadowColor: '#00000010',
-    shadowOpacity: 0.08,
-    shadowRadius: 10,
-    elevation: 2
-  },
-  title: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#1c1c1e'
-  },
-  metaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    flexWrap: 'wrap'
-  },
-  metaText: {
-    color: '#6c6c70',
-    fontSize: 14
-  },
-  badge: {
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 999
-  },
-  badgeText: {
-    color: '#fff',
-    fontWeight: '600'
-  },
-  ctaButton: {
-    backgroundColor: '#FF6F3C',
-    paddingHorizontal: 18,
-    paddingVertical: 10,
-    borderRadius: 12
-  },
-  ctaText: {
-    color: '#fff',
-    fontWeight: '700'
-  }
-});
 
 export default DrillsScreen;

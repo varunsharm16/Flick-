@@ -1,22 +1,108 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
+import { NavigationProp } from '@react-navigation/native';
 import { useQuery } from '@tanstack/react-query';
 
 import { api } from './api/client';
 import ProBadge from './components/ProBadge';
 import { useSession } from './store/useSession';
+import { RootTabParamList } from './navigation/types';
+import { AppTheme, AppThemeColors, useAppTheme } from '@/hooks/useAppTheme';
+
+const createStyles = (colors: AppThemeColors, spacing: AppTheme['spacing'], typography: AppTheme['typography']) =>
+  StyleSheet.create({
+    content: {
+      paddingBottom: spacing.section * 6,
+      gap: spacing.section,
+      flexGrow: 1,
+    },
+    header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.itemGap,
+    },
+    avatar: {
+      width: 80,
+      height: 80,
+      borderRadius: 40,
+    },
+    placeholder: {
+      width: 80,
+      height: 80,
+      borderRadius: 40,
+      backgroundColor: colors.surfaceElevated,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    name: {
+      fontSize: typography.title,
+      fontWeight: '700',
+      color: colors.text,
+    },
+    badgeRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.itemGap / 2,
+      marginTop: 6,
+    },
+    badgeLabel: {
+      color: colors.muted,
+      fontWeight: '600',
+    },
+    upgradeCard: {
+      backgroundColor: colors.accent,
+      padding: spacing.section,
+      borderRadius: spacing.cardRadius + 4,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: spacing.itemGap,
+    },
+    upgradeTitle: {
+      color: '#fff',
+      fontSize: typography.subtitle,
+      fontWeight: '700',
+    },
+    upgradeBody: {
+      color: '#fff',
+      opacity: 0.9,
+      marginTop: 4,
+      fontSize: typography.body,
+    },
+    tiles: {
+      gap: spacing.itemGap,
+    },
+    tile: {
+      backgroundColor: colors.surface,
+      borderRadius: spacing.cardRadius,
+      padding: spacing.section,
+      gap: spacing.itemGap / 2,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.border,
+    },
+    tileText: {
+      fontSize: typography.body,
+      fontWeight: '600',
+      color: colors.text,
+    },
+    tileSub: {
+      color: colors.muted,
+      fontSize: typography.small,
+    },
+  });
 
 const ProfileScreen: React.FC = () => {
-  const navigation = useNavigation();
+  const navigation = useNavigation<NavigationProp<RootTabParamList>>();
+  const { colors, sharedStyles, spacing, typography } = useAppTheme();
+  const styles = useMemo(() => createStyles(colors, spacing, typography), [colors, spacing, typography]);
   const { name, avatarUrl, isPro, setProfile, upgradeToPro } = useSession();
 
   const { data } = useQuery({
     queryKey: ['profile'],
     queryFn: api.getProfile,
   });
-
 
   useEffect(() => {
     if (data) {
@@ -25,13 +111,17 @@ const ProfileScreen: React.FC = () => {
   }, [data, setProfile]);
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
-      <View style={styles.header}>
+    <View style={sharedStyles.screen}>
+      <ScrollView
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.header}>
         {avatarUrl ? (
           <Image source={{ uri: avatarUrl }} style={styles.avatar} />
         ) : (
           <View style={styles.placeholder}>
-            <Ionicons name="person" size={28} color="#6c6c70" />
+            <Ionicons name="person" size={28} color={colors.muted} />
           </View>
         )}
         <View>
@@ -55,105 +145,29 @@ const ProfileScreen: React.FC = () => {
 
       <View style={styles.tiles}>
         <TouchableOpacity style={styles.tile}>
-          <Ionicons name="trophy" size={22} color="#FF6F3C" />
+          <Ionicons name="trophy" size={22} color={colors.accent} />
           <Text style={styles.tileText}>P4P Badge</Text>
           <Text style={styles.tileSub}>Shooter Level 1</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.tile}>
-          <Ionicons name="card" size={22} color="#FF6F3C" />
+          <Ionicons name="card" size={22} color={colors.accent} />
           <Text style={styles.tileText}>Billing</Text>
           <Text style={styles.tileSub}>Manage payment (coming soon)</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.tile} onPress={() => navigation.navigate('Settings' as never)}>
-          <Ionicons name="settings" size={22} color="#FF6F3C" />
+        <TouchableOpacity style={styles.tile} onPress={() => navigation.navigate('Settings')}>
+          <Ionicons name="settings" size={22} color={colors.accent} />
           <Text style={styles.tileText}>Settings</Text>
           <Text style={styles.tileSub}>Notifications, theme</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.tile}>
-          <Ionicons name="log-out" size={22} color="#FF6F3C" />
+          <Ionicons name="log-out" size={22} color={colors.accent} />
           <Text style={styles.tileText}>Log out</Text>
           <Text style={styles.tileSub}>Sign out of Flick</Text>
         </TouchableOpacity>
       </View>
     </ScrollView>
+  </View>
   );
 };
-
-const styles = StyleSheet.create({
-  container: {
-    padding: 20,
-    paddingBottom: 120,
-    backgroundColor: '#F2F2F7',
-    gap: 20
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 16
-  },
-  avatar: {
-    width: 80,
-    height: 80,
-    borderRadius: 40
-  },
-  placeholder: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: '#e5e5ea',
-    alignItems: 'center',
-    justifyContent: 'center'
-  },
-  name: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#1c1c1e'
-  },
-  badgeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginTop: 6
-  },
-  badgeLabel: {
-    color: '#6c6c70',
-    fontWeight: '600'
-  },
-  upgradeCard: {
-    backgroundColor: '#FF6F3C',
-    padding: 20,
-    borderRadius: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between'
-  },
-  upgradeTitle: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: '700'
-  },
-  upgradeBody: {
-    color: '#fff',
-    opacity: 0.9,
-    marginTop: 4
-  },
-  tiles: {
-    gap: 12
-  },
-  tile: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 18,
-    gap: 6
-  },
-  tileText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1c1c1e'
-  },
-  tileSub: {
-    color: '#6c6c70'
-  }
-});
 
 export default ProfileScreen;
