@@ -1,15 +1,14 @@
 import React, { useEffect } from 'react';
 import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
 import { useQuery } from '@tanstack/react-query';
 
 import { api } from './api/client';
 import ProBadge from './components/ProBadge';
+import SettingsScreen from './settings';
 import { useSession } from './store/useSession';
 
 const ProfileScreen: React.FC = () => {
-  const navigation = useNavigation();
   const { name, avatarUrl, isPro, setProfile, upgradeToPro } = useSession();
 
   const { data } = useQuery({
@@ -34,11 +33,20 @@ const ProfileScreen: React.FC = () => {
             <Ionicons name="person" size={28} color="#6c6c70" />
           </View>
         )}
-        <View>
+        <View style={styles.headerText}>
           <Text style={styles.name}>{name}</Text>
           <View style={styles.badgeRow}>
             <ProBadge active={isPro} />
             <Text style={styles.badgeLabel}>{isPro ? 'PRO Member' : 'Free tier'}</Text>
+          </View>
+          <View style={styles.badgesList}>
+            <View style={styles.badgeCard}>
+              <Ionicons name="trophy" size={18} color="#FF6F3C" />
+              <View>
+                <Text style={styles.badgeTitle}>P4P Badge</Text>
+                <Text style={styles.badgeDescription}>Shooter Level 1</Text>
+              </View>
+            </View>
           </View>
         </View>
       </View>
@@ -55,25 +63,20 @@ const ProfileScreen: React.FC = () => {
 
       <View style={styles.tiles}>
         <TouchableOpacity style={styles.tile}>
-          <Ionicons name="trophy" size={22} color="#FF6F3C" />
-          <Text style={styles.tileText}>P4P Badge</Text>
-          <Text style={styles.tileSub}>Shooter Level 1</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.tile}>
           <Ionicons name="card" size={22} color="#FF6F3C" />
           <Text style={styles.tileText}>Billing</Text>
           <Text style={styles.tileSub}>Manage payment (coming soon)</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.tile} onPress={() => navigation.navigate('Settings' as never)}>
-          <Ionicons name="settings" size={22} color="#FF6F3C" />
-          <Text style={styles.tileText}>Settings</Text>
-          <Text style={styles.tileSub}>Notifications, theme</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.tile}>
           <Ionicons name="log-out" size={22} color="#FF6F3C" />
           <Text style={styles.tileText}>Log out</Text>
           <Text style={styles.tileSub}>Sign out of Flick</Text>
         </TouchableOpacity>
+      </View>
+
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Settings</Text>
+        <SettingsScreen />
       </View>
     </ScrollView>
   );
@@ -90,6 +93,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 16
+  },
+  headerText: {
+    flex: 1,
+    gap: 8
   },
   avatar: {
     width: 80,
@@ -118,6 +125,32 @@ const styles = StyleSheet.create({
   badgeLabel: {
     color: '#6c6c70',
     fontWeight: '600'
+  },
+  badgesList: {
+    marginTop: 8,
+    gap: 8,
+    alignSelf: 'stretch'
+  },
+  badgeCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: '#fff',
+    padding: 12,
+    borderRadius: 14,
+    shadowColor: '#00000010',
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    elevation: 1,
+    alignSelf: 'stretch'
+  },
+  badgeTitle: {
+    fontWeight: '600',
+    color: '#1c1c1e'
+  },
+  badgeDescription: {
+    color: '#6c6c70',
+    fontSize: 13
   },
   upgradeCard: {
     backgroundColor: '#FF6F3C',
@@ -153,6 +186,15 @@ const styles = StyleSheet.create({
   },
   tileSub: {
     color: '#6c6c70'
+  },
+  section: {
+    gap: 16,
+    width: '100%'
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#1c1c1e'
   }
 });
 

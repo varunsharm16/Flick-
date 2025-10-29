@@ -1,14 +1,92 @@
-import React from 'react';
-import { Platform, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import {
+  Alert,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Switch,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+  ToastAndroid,
+} from 'react-native';
+
 import { useSession, ThemeOption } from './store/useSession';
 
 const themeOptions: ThemeOption[] = ['light', 'dark', 'system'];
 
 const SettingsScreen: React.FC = () => {
-  const { notificationsEnabled, setNotifications, theme, setTheme } = useSession();
+  const {
+    name,
+    avatarUrl,
+    notificationsEnabled,
+    setNotifications,
+    theme,
+    setTheme,
+    updateName,
+    updateAvatar,
+  } = useSession();
+  const [nameInput, setNameInput] = useState(name);
+  const [avatarInput, setAvatarInput] = useState(avatarUrl ?? '');
+
+  useEffect(() => {
+    setNameInput(name);
+  }, [name]);
+
+  useEffect(() => {
+    setAvatarInput(avatarUrl ?? '');
+  }, [avatarUrl]);
+
+  const handleSaveProfile = () => {
+    const trimmedName = nameInput.trim();
+    const trimmedAvatar = avatarInput.trim();
+
+    if (trimmedName.length > 0) {
+      updateName(trimmedName);
+    }
+
+    updateAvatar(trimmedAvatar.length > 0 ? trimmedAvatar : undefined);
+
+    const message = 'Profile updated';
+    if (Platform.OS === 'android') {
+      ToastAndroid.show(message, ToastAndroid.SHORT);
+    } else {
+      Alert.alert('Flick', message);
+    }
+  };
 
   return (
     <View style={styles.container}>
+      <View style={styles.card}>
+        <Text style={styles.sectionTitle}>Profile Settings</Text>
+        <View style={styles.fieldGroup}>
+          <Text style={styles.label}>Display name</Text>
+          <TextInput
+            value={nameInput}
+            onChangeText={setNameInput}
+            placeholder="Enter your name"
+            style={styles.input}
+            placeholderTextColor="#8e8e93"
+            autoCapitalize="words"
+          />
+        </View>
+        <View style={styles.fieldGroup}>
+          <Text style={styles.label}>Avatar URL</Text>
+          <TextInput
+            value={avatarInput}
+            onChangeText={setAvatarInput}
+            placeholder="https://..."
+            style={styles.input}
+            placeholderTextColor="#8e8e93"
+            autoCapitalize="none"
+          />
+        </View>
+        <TouchableOpacity style={[styles.primaryButton]} onPress={handleSaveProfile}>
+          <Text style={styles.primaryButtonText}>Save profile</Text>
+        </TouchableOpacity>
+      </View>
+
       <View style={styles.card}>
         <Text style={styles.sectionTitle}>Notifications</Text>
         <View style={styles.row}>
@@ -37,9 +115,7 @@ const SettingsScreen: React.FC = () => {
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
-    backgroundColor: '#F2F2F7',
-    padding: 20,
+    width: '100%',
     gap: 16
   },
   card: {
@@ -62,6 +138,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between'
   },
+  fieldGroup: {
+    gap: 8
+  },
+  input: {
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#e5e5ea',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 16,
+    color: '#1c1c1e'
+  },
   label: {
     fontSize: 16,
     color: '#1c1c1e'
@@ -76,6 +164,17 @@ const styles = StyleSheet.create({
   radioActive: {
     borderColor: '#FF6F3C',
     backgroundColor: '#FF6F3C33'
+  },
+  primaryButton: {
+    backgroundColor: '#FF6F3C',
+    borderRadius: 14,
+    paddingVertical: 12,
+    alignItems: 'center'
+  },
+  primaryButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600'
   }
 });
 
