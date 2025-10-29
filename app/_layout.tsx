@@ -1,5 +1,5 @@
-import React from 'react';
-import { useColorScheme } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { useColorScheme, View, Text, StyleSheet } from 'react-native';
 import { NavigationContainer, DefaultTheme, DarkTheme } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -17,17 +17,18 @@ import SettingsScreen from './settings';
 const queryClient = new QueryClient();
 
 const Tab = createBottomTabNavigator();
-const Stack = createNativeStackNavigator();
+const DrillsStackNavigator = createNativeStackNavigator();
+const RootStack = createNativeStackNavigator();
 
 function DrillsStack() {
   return (
-    <Stack.Navigator>
-      <Stack.Screen
+    <DrillsStackNavigator.Navigator>
+      <DrillsStackNavigator.Screen
         name="Drills"
         component={DrillsScreen}
         options={{ headerShown: false }}
       />
-      <Stack.Screen
+      <DrillsStackNavigator.Screen
         name="DrillDetail"
         component={DrillDetailScreen}
         options={{
@@ -35,7 +36,15 @@ function DrillsStack() {
           headerBackTitle: 'Back',
         }}
       />
-    </Stack.Navigator>
+    </DrillsStackNavigator.Navigator>
+  );
+}
+
+function SplashScreen() {
+  return (
+    <View style={styles.splashContainer}>
+      <Text style={styles.splashText}>Flick</Text>
+    </View>
   );
 }
 
@@ -69,14 +78,43 @@ function MainTabs() {
 
 export default function Layout() {
   const colorScheme = useColorScheme();
+  const [showSplash, setShowSplash] = useState(true);
+
+  useEffect(() => {
+    const timeout = setTimeout(() => setShowSplash(false), 2000);
+
+    return () => clearTimeout(timeout);
+  }, []);
 
   return (
     <SafeAreaProvider>
       <QueryClientProvider client={queryClient}>
         <NavigationContainer theme={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-          <MainTabs />
+          <RootStack.Navigator screenOptions={{ headerShown: false }}>
+            {showSplash ? (
+              <RootStack.Screen name="Splash" component={SplashScreen} />
+            ) : (
+              <RootStack.Screen name="Main" component={MainTabs} />
+            )}
+          </RootStack.Navigator>
         </NavigationContainer>
       </QueryClientProvider>
     </SafeAreaProvider>
   );
 }
+
+const styles = StyleSheet.create({
+  splashContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#0B0D17',
+  },
+  splashText: {
+    fontSize: 48,
+    fontWeight: '700',
+    color: '#FF6F3C',
+    letterSpacing: 4,
+    textTransform: 'uppercase',
+  },
+});
