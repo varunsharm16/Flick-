@@ -2,7 +2,6 @@ import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  Modal,
   Platform,
   StyleSheet,
   Text,
@@ -10,27 +9,51 @@ import {
   View,
   ToastAndroid,
 } from 'react-native';
-// import { Camera, CameraType } from 'expo-camera';
 import { CameraView, useCameraPermissions, useMicrophonePermissions } from 'expo-camera';
-
-
 import * as FileSystem from 'expo-file-system';
 import { useMutation } from '@tanstack/react-query';
 import { useNavigation } from '@react-navigation/native';
 import Ionicons from '@expo/vector-icons/Ionicons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import CaptureButton from './components/CaptureButton';
 import { api } from './api/client';
 
+type IntervalHandle = ReturnType<typeof setInterval> | null;
+type TimeoutHandle = ReturnType<typeof setTimeout> | null;
+
 const RecordScreen: React.FC = () => {
+  const insets = useSafeAreaInsets();
   const cameraRef = useRef<CameraView>(null);
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
   const [micPermission, requestMicPermission] = useMicrophonePermissions();
   const [cameraType, setCameraType] = useState<'front' | 'back'>('back');
   const [recording, setRecording] = useState(false);
   const [videoUri, setVideoUri] = useState<string | null>(null);
-  const [modalVisible, setModalVisible] = useState(false);
+  const [showActions, setShowActions] = useState(false);
+  const [elapsedMs, setElapsedMs] = useState(0);
+  const timerRef = useRef<IntervalHandle>(null);
+  const autoStopRef = useRef<TimeoutHandle>(null);
   const navigation = useNavigation();
+
+  const startTimer = () => {
+    setElapsedMs(0);
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+    }
+    timerRef.current = setInterval(() => {
+      setElapsedMs(prev => prev + 100);
+    }, 100);
+  };
+
+  const stopTimer = () => {
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+  };
+
+  const fmt = (ms: number) => (ms / 1000).toFixed(2);
 
   const analyzeMutation = useMutation({
     mutationFn: async (uri: string) => {
@@ -44,20 +67,31 @@ const RecordScreen: React.FC = () => {
       } else {
         Alert.alert('Flick', message);
       }
-      setModalVisible(false);
       setVideoUri(null);
+      setShowActions(false);
+      setElapsedMs(0);
       navigation.navigate('Progress' as never);
     },
     onError: () => {
       Alert.alert('Upload failed', 'Please try again.');
+      setShowActions(true);
     }
   });
 
   useEffect(() => {
     if (!cameraPermission?.granted) requestCameraPermission();
     if (!micPermission?.granted) requestMicPermission();
-  }, [cameraPermission, micPermission]);
+  }, [cameraPermission, micPermission, requestCameraPermission, requestMicPermission]);
 
+  useEffect(() => {
+    return () => {
+      stopTimer();
+      if (autoStopRef.current) {
+        clearTimeout(autoStopRef.current);
+        autoStopRef.current = null;
+      }
+    };
+  }, []);
 
   const toggleCamera = () => {
     setCameraType(prev => (prev === 'back' ? 'front' : 'back'));
@@ -75,8 +109,17 @@ const RecordScreen: React.FC = () => {
         return;
       }
 
+      if (showActions || analyzeMutation.isPending) {
+        return;
+      }
+
       if (recording) {
         await cameraRef.current?.stopRecording();
+        stopTimer();
+        if (autoStopRef.current) {
+          clearTimeout(autoStopRef.current);
+          autoStopRef.current = null;
+        }
         setRecording(false);
         const message = 'Recording stopped';
         if (Platform.OS === 'android') {
@@ -87,24 +130,33 @@ const RecordScreen: React.FC = () => {
         return;
       }
 
+      if (!cameraRef.current) {
+        Alert.alert('Flick', 'Camera is not ready yet.');
+        return;
+      }
+
       setRecording(true);
+      setShowActions(false);
+      setVideoUri(null);
+      startTimer();
 
-      // start recording (no options object)
-      const recordingPromise = cameraRef.current?.recordAsync();
-
-      // enforce 30s max
-      const stopTimer = setTimeout(() => {
+      const recordingPromise = cameraRef.current.recordAsync();
+      autoStopRef.current = setTimeout(() => {
         cameraRef.current?.stopRecording();
       }, 30_000);
 
       const video = await recordingPromise;
-      clearTimeout(stopTimer);
+      if (autoStopRef.current) {
+        clearTimeout(autoStopRef.current);
+        autoStopRef.current = null;
+      }
 
+      stopTimer();
       setRecording(false);
 
       if (video?.uri) {
         setVideoUri(video.uri);
-        setModalVisible(true);
+        setShowActions(true);
         const message = 'Recording saved';
         if (Platform.OS === 'android') {
           ToastAndroid.show(message, ToastAndroid.SHORT);
@@ -116,6 +168,11 @@ const RecordScreen: React.FC = () => {
       }
     } catch (err) {
       console.error('Recording error:', err);
+      stopTimer();
+      if (autoStopRef.current) {
+        clearTimeout(autoStopRef.current);
+        autoStopRef.current = null;
+      }
       const message = 'Recording error, unable to capture video';
       if (Platform.OS === 'android') {
         ToastAndroid.show(message, ToastAndroid.SHORT);
@@ -125,7 +182,6 @@ const RecordScreen: React.FC = () => {
       setRecording(false);
     }
   };
-
 
   if (!cameraPermission) {
     return (
@@ -146,7 +202,6 @@ const RecordScreen: React.FC = () => {
     );
   }
 
-
   return (
     <View style={styles.container}>
       <View style={styles.cameraWrapper}>
@@ -156,61 +211,62 @@ const RecordScreen: React.FC = () => {
           facing={cameraType}
           mode="video"
         />
-        <View style={styles.topControls}>
+        <View style={[styles.topControls, { top: insets.top + 16 }]}>
           <TouchableOpacity style={styles.iconButton} onPress={toggleCamera}>
             <Ionicons name="camera-reverse-outline" size={24} color="#fff" />
           </TouchableOpacity>
         </View>
-      </View>
-
-      <View style={styles.captureContainer}>
-        <CaptureButton onPress={handleRecord} recording={recording} />
-        {recording && <Text style={styles.recordingLabel}>Recording...</Text>}
-      </View>
-
-      <Modal visible={modalVisible} transparent animationType="fade" onRequestClose={() => setModalVisible(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Great shot!</Text>
-            <Text style={styles.modalSubtitle}>Save your clip for AI analysis?</Text>
-            <View style={styles.modalActions}>
-              <TouchableOpacity
-                style={[styles.modalButton, styles.secondaryButton]}
-                onPress={() => {
-                  setModalVisible(false);
-                  setVideoUri(null);
-                }}
-              >
-                <Text style={[styles.modalButtonText, styles.secondaryButtonText]}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.modalButton, styles.secondaryButton]}
-                onPress={() => {
-                  setModalVisible(false);
-                  setVideoUri(null);
-                }}
-              >
-                <Text style={[styles.modalButtonText, styles.secondaryButtonText]}>Retake</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.modalButton, styles.primaryButton]}
-                onPress={() => {
-                  if (videoUri) {
-                    analyzeMutation.mutate(videoUri);
-                  }
-                }}
-                disabled={analyzeMutation.isPending}
-              >
-                {analyzeMutation.isPending ? (
-                  <ActivityIndicator color="#fff" />
-                ) : (
-                  <Text style={styles.modalButtonText}>Save & Analyze</Text>
-                )}
-              </TouchableOpacity>
-            </View>
-          </View>
+        <View style={[styles.timerBadge, { top: insets.top + 8 }]}>
+          <Text style={styles.timerText}>{fmt(elapsedMs)}s</Text>
         </View>
-      </Modal>
+      </View>
+
+      {!showActions && (
+        <View style={[styles.captureContainer, { bottom: insets.bottom + 48 }]}>
+          <CaptureButton onPress={handleRecord} recording={recording} disabled={analyzeMutation.isPending} />
+          {recording && <Text style={styles.recordingLabel}>Recording...</Text>}
+        </View>
+      )}
+
+      {showActions && (
+        <View style={[styles.actionPillBar, { bottom: insets.bottom + 24 }]}>
+          <TouchableOpacity
+            style={[styles.pillBtn, styles.secondary]}
+            onPress={() => {
+              Alert.alert('Discard clip?', 'This will delete the current recording.', [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                  text: 'Delete',
+                  style: 'destructive',
+                  onPress: () => {
+                    setVideoUri(null);
+                    setShowActions(false);
+                    setElapsedMs(0);
+                  },
+                },
+              ]);
+            }}
+          >
+            <Text style={[styles.pillText, styles.secondaryText]}>Remove</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.pillBtn, styles.primary]}
+            onPress={() => {
+              if (videoUri) {
+                setShowActions(false);
+                setElapsedMs(0);
+                analyzeMutation.mutate(videoUri);
+              }
+            }}
+          >
+            {analyzeMutation.isPending ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={[styles.pillText, styles.primaryText]}>Submit</Text>
+            )}
+          </TouchableOpacity>
+        </View>
+      )}
     </View>
   );
 };
@@ -244,7 +300,6 @@ const styles = StyleSheet.create({
   },
   captureContainer: {
     position: 'absolute',
-    bottom: 48,
     width: '100%',
     alignItems: 'center',
     justifyContent: 'center'
@@ -254,7 +309,6 @@ const styles = StyleSheet.create({
   },
   topControls: {
     position: 'absolute',
-    top: 20,
     right: 20,
   },
   iconButton: {
@@ -265,57 +319,55 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center'
   },
+  timerBadge: {
+    position: 'absolute',
+    left: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    borderRadius: 12
+  },
+  timerText: {
+    color: '#fff',
+    fontWeight: '600'
+  },
   recordingLabel: {
     color: '#fff',
     marginTop: 12,
     fontWeight: '600'
   },
-  modalOverlay: {
+  actionPillBar: {
+    position: 'absolute',
+    left: 16,
+    right: 16,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 12
+  },
+  pillBtn: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 24
-  },
-  modalCard: {
-    backgroundColor: '#fff',
-    borderRadius: 20,
-    padding: 24,
-    width: '100%',
-    maxWidth: 340,
-    gap: 12
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    textAlign: 'center'
-  },
-  modalSubtitle: {
-    fontSize: 15,
-    color: '#6c6c70',
-    textAlign: 'center'
-  },
-  modalActions: {
-    flexDirection: 'column',
-    gap: 12
-  },
-  modalButton: {
     paddingVertical: 14,
-    borderRadius: 14,
+    borderRadius: 999,
     alignItems: 'center'
   },
-  modalButtonText: {
+  pillText: {
     fontSize: 16,
-    fontWeight: '600'
+    fontWeight: '700'
   },
-  secondaryButton: {
-    backgroundColor: '#f2f2f7'
-  },
-  secondaryButtonText: {
-    color: '#1c1c1e'
-  },
-  primaryButton: {
+  primary: {
     backgroundColor: '#FF6F3C'
+  },
+  primaryText: {
+    color: '#fff'
+  },
+  secondary: {
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#ddd'
+  },
+  secondaryText: {
+    color: '#111827',
+    fontWeight: '700'
   },
   camera: { flex: 1 }
 });

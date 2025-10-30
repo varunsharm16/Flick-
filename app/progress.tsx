@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useMutation, useQuery } from '@tanstack/react-query';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import MetricCard from './components/MetricCard';
 import TrendChart from './components/TrendChart';
@@ -19,6 +20,7 @@ import { api } from './api/client';
 import { useSession } from './store/useSession';
 
 const ProgressScreen: React.FC = () => {
+  const insets = useSafeAreaInsets();
   const [coachOpen, setCoachOpen] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
@@ -29,16 +31,13 @@ const ProgressScreen: React.FC = () => {
   ]);
   const [coachInput, setCoachInput] = useState('');
   const [showUpgrade, setShowUpgrade] = useState(false);
-  const { isPro, setProfile, userId, upgradeToPro } = useSession();
+  const { isPro, userId, upgradeToPro } = useSession();
 
-  // const { data: progress, isLoading } = useQuery(['progress', '7d'], api.getProgress);
   const period = '7d';
   const { data: progress, isLoading } = useQuery({
     queryKey: ['progress', period],
     queryFn: () => api.getProgress(period),
   });
-
-
 
   const coachMutation = useMutation({
     mutationFn: api.postCoach,
@@ -114,6 +113,15 @@ const ProgressScreen: React.FC = () => {
     ];
   }, [progress]);
 
+  const accuracyTrend = useMemo(
+    () =>
+      progress?.accuracyTrend?.map(point => ({
+        date: point.day,
+        value: (point.v ?? 0) * 100,
+      })),
+    [progress]
+  );
+
   const handleCoachSend = () => {
     if (!coachInput.trim()) return;
     const text = coachInput.trim();
@@ -132,8 +140,12 @@ const ProgressScreen: React.FC = () => {
   const lockedMetrics = !isPro;
 
   return (
-    <View style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+    <SafeAreaView style={[styles.safeArea, { paddingTop: insets.top }]} edges={['top', 'left', 'right']}>
+      <ScrollView
+        contentInsetAdjustmentBehavior="automatic"
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 24 }]}
+        showsVerticalScrollIndicator={false}
+      >
         <View style={styles.header}>
           <View>
             <Text style={styles.title}>Progress</Text>
@@ -170,22 +182,18 @@ const ProgressScreen: React.FC = () => {
           )}
         </View>
 
-        {progress && (
-          <View style={styles.trendCard}>
-            <View style={styles.trendHeader}>
-              <Text style={styles.trendTitle}>Shooting Accuracy Trend</Text>
-              {!isPro && <ProBadge />}
+        <View style={styles.trendSection}>
+          {lockedMetrics ? (
+            <TouchableOpacity style={styles.trendLocked} onPress={() => setShowUpgrade(true)}>
+              <Ionicons name="lock-closed" size={20} color="#FF9500" />
+              <Text style={styles.lockedText}>Upgrade to PRO to view detailed trends</Text>
+            </TouchableOpacity>
+          ) : (
+            <View style={styles.trendWrapper}>
+              <TrendChart title="Shooting Accuracy Trend" data={accuracyTrend} />
             </View>
-            {lockedMetrics ? (
-              <TouchableOpacity style={styles.trendLocked} onPress={() => setShowUpgrade(true)}>
-                <Ionicons name="lock-closed" size={20} color="#FF9500" />
-                <Text style={styles.lockedText}>Upgrade to PRO to view detailed trends</Text>
-              </TouchableOpacity>
-            ) : (
-              <TrendChart data={progress.accuracyTrend} />
-            )}
-          </View>
-        )}
+          )}
+        </View>
       </ScrollView>
 
       <CoachSheet
@@ -221,18 +229,17 @@ const ProgressScreen: React.FC = () => {
           </View>
         </View>
       </Modal>
-    </View>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
+  safeArea: {
     flex: 1,
     backgroundColor: '#F2F2F7'
   },
   scrollContent: {
     padding: 20,
-    paddingBottom: 120,
     gap: 20
   },
   header: {
@@ -269,36 +276,23 @@ const styles = StyleSheet.create({
   metricsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    marginHorizontal: -8
+    gap: 16
   },
   metricItem: {
-    width: '50%',
-    padding: 8
+    flexBasis: '48%',
+    minWidth: 160,
+    flexGrow: 1
   },
-  trendCard: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 16,
-    gap: 16,
-    shadowColor: '#00000010',
-    shadowOpacity: 0.08,
-    shadowRadius: 10,
-    elevation: 2
+  trendSection: {
+    alignItems: 'stretch'
   },
-  trendHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between'
-  },
-  trendTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#1c1c1e'
+  trendWrapper: {
+    alignItems: 'center'
   },
   trendLocked: {
-    height: 180,
-    borderRadius: 16,
     backgroundColor: '#fff9f0',
+    borderRadius: 16,
+    padding: 24,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 12,
