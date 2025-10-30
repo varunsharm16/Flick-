@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useColorScheme, View, Text, StyleSheet } from 'react-native';
-import { NavigationContainer, DefaultTheme, DarkTheme } from '@react-navigation/native';
+// import { NavigationContainer, DefaultTheme, DarkTheme } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -105,7 +105,6 @@ export default function Layout() {
   return (
     <SafeAreaProvider>
       <QueryClientProvider client={queryClient}>
-        <NavigationContainer theme={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
           <RootStack.Navigator screenOptions={{ headerShown: false }}>
             {showSplash ? (
               <RootStack.Screen name="Splash" component={SplashScreen} />
@@ -113,7 +112,6 @@ export default function Layout() {
               <RootStack.Screen name="Main" component={MainTabs} />
             )}
           </RootStack.Navigator>
-        </NavigationContainer>
       </QueryClientProvider>
     </SafeAreaProvider>
   );
