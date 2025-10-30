@@ -1,57 +1,54 @@
 import React from 'react';
 import { Dimensions, StyleSheet, Text, View } from 'react-native';
-import Svg, { Path, Rect } from 'react-native-svg';
+import { VictoryAxis, VictoryChart, VictoryLine, VictoryTheme } from 'victory-native';
 
-type Pt = { day: string; v: number };
-type Props = { data?: Pt[]; title?: string };
+export type TrendPoint = { date?: string; value?: number };
 
-export default function TrendChart({ data = [], title }: Props) {
-  const width = Math.max(280, Dimensions.get('window').width - 32);
-  const height = 160;
-
-  if (!data.length) {
-    return (
-      <View style={[styles.container, { width }]}>
-        {title ? <Text style={styles.title}>{title}</Text> : null}
-        <Text style={styles.placeholder}>No trend data yet</Text>
-      </View>
-    );
-  }
-
-  const xs = data.map((_, i) => i);
-  const ys = data.map(d => d.v);
-  const minY = Math.min(...ys);
-  const maxY = Math.max(...ys);
-  const pad = 12;
-  const W = width - pad * 2;
-  const H = height - pad * 2;
-
-  const x = (i: number) => pad + (i / Math.max(1, xs.length - 1)) * W;
-  const y = (v: number) => pad + H - ((v - minY) / Math.max(1, maxY - minY)) * H;
-
-  // area path
-  let d = `M ${x(0)} ${y(ys[0])}`;
-  for (let i = 1; i < xs.length; i++) d += ` L ${x(i)} ${y(ys[i])}`;
-  d += ` L ${x(xs.length - 1)} ${pad + H} L ${x(0)} ${pad + H} Z`;
-
-  return (
-    <View style={[styles.container, { width }]}>
-      {title ? <Text style={styles.title}>{title}</Text> : null}
-      <Svg width={width} height={height}>
-        <Rect x={0} y={0} width={width} height={height} fill="white" />
-        <Path d={d} opacity={0.2} />
-        <Path
-          d={`M ${x(0)} ${y(ys[0])}` + xs.slice(1).map((_, i) => ` L ${x(i+1)} ${y(ys[i+1])}`).join('')}
-          strokeWidth={2}
-          fill="none"
-        />
-      </Svg>
-    </View>
-  );
+interface TrendChartProps {
+  data?: TrendPoint[];
+  title?: string;
 }
 
+const TrendChart: React.FC<TrendChartProps> = ({ data, title }) => {
+  const width = Dimensions.get('window').width - 32;
+  const points = (data?.length
+    ? data.map((point, index) => ({ x: index + 1, y: Number(point.value ?? 0) }))
+    : [...Array(7)].map((_, index) => ({ x: index + 1, y: 60 + Math.random() * 10 })));
+
+  return (
+    <View style={[styles.container, { width }]}> 
+      {title ? <Text style={styles.title}>{title}</Text> : null}
+      <VictoryChart width={width} theme={VictoryTheme.material} domainPadding={{ y: 8 }}>
+        <VictoryAxis style={{ tickLabels: { fontSize: 10, fill: '#6c6c70' } }} />
+        <VictoryAxis dependentAxis style={{ tickLabels: { fontSize: 10, fill: '#6c6c70' } }} />
+        <VictoryLine
+          data={points}
+          x="x"
+          y="y"
+          style={{ data: { stroke: '#16a34a', strokeWidth: 3, strokeLinecap: 'round' } }}
+          interpolation="monotoneX"
+        />
+      </VictoryChart>
+    </View>
+  );
+};
+
 const styles = StyleSheet.create({
-  container: { padding: 12, borderRadius: 12, backgroundColor: '#fff' },
-  title: { fontSize: 16, fontWeight: '600', marginBottom: 8 },
-  placeholder: { opacity: 0.6 },
+  container: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 16,
+    shadowColor: '#00000010',
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  title: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1c1c1e',
+    marginBottom: 12,
+  },
 });
+
+export default TrendChart;
