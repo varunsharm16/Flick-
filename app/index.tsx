@@ -31,22 +31,33 @@ export default function Index() {
 
     try {
       if (localStorage.getItem('recoveryMode') === 'true') {
+        const savedAccess = localStorage.getItem('recoveryAccess');
+        const savedRefresh = localStorage.getItem('recoveryRefresh');
+        const savedEmail = localStorage.getItem('recoveryEmail');
+
+        if (!savedAccess || !savedRefresh) {
+          console.log('Recovery mode found without tokens. Clearing state.');
+          localStorage.removeItem('recoveryMode');
+          localStorage.removeItem('recoveryAccess');
+          localStorage.removeItem('recoveryRefresh');
+          localStorage.removeItem('recoveryEmail');
+          setAccessToken(null);
+          setRefreshToken(null);
+          setRecoveryEmail('');
+          forceRecovery.current = false;
+          recoveryTriggered.current = false;
+          setMode('login');
+          return;
+        }
+
         setMode('recovery');
         forceRecovery.current = true;
         recoveryTriggered.current = true;
         setResetSuccess(false);
 
-        const savedAccess = localStorage.getItem('recoveryAccess');
-        const savedRefresh = localStorage.getItem('recoveryRefresh');
-        const savedEmail = localStorage.getItem('recoveryEmail');
-
-        if (savedAccess) setAccessToken(savedAccess);
-        if (savedRefresh) setRefreshToken(savedRefresh);
+        setAccessToken(savedAccess);
+        setRefreshToken(savedRefresh);
         if (savedEmail) setRecoveryEmail(savedEmail);
-
-        if (!savedAccess) {
-          console.log('No recovery token found in storage.');
-        }
       }
     } catch (error) {
       console.warn('Unable to read recovery state from storage:', error);
@@ -165,6 +176,30 @@ export default function Index() {
     else alert('Password reset email sent! Check your inbox.');
   }
 
+  const exitRecoveryMode = (options?: { keepSuccess?: boolean }) => {
+    setMode('login');
+    if (!options?.keepSuccess) {
+      setResetSuccess(false);
+    }
+    setNewPassword('');
+    setRecoveryEmail('');
+    setAccessToken(null);
+    setRefreshToken(null);
+    forceRecovery.current = false;
+    recoveryTriggered.current = false;
+
+    if (Platform.OS === 'web') {
+      try {
+        localStorage.removeItem('recoveryMode');
+        localStorage.removeItem('recoveryAccess');
+        localStorage.removeItem('recoveryRefresh');
+        localStorage.removeItem('recoveryEmail');
+      } catch (error) {
+        console.warn('Unable to clear recovery state:', error);
+      }
+    }
+  };
+
   async function handlePasswordReset() {
     try {
       const token = accessToken ?? (Platform.OS === 'web' ? localStorage.getItem('recoveryAccess') : null);
@@ -183,39 +218,30 @@ export default function Index() {
 
       setLoading(true);
 
-      const { error: sessionError } = await supabase.auth.setSession({
+      const { data: sessionData, error: sessionError } = await supabase.auth.setSession({
         access_token: token,
         refresh_token: refresh ?? token,
       });
       if (sessionError) {
+        console.error('setSession error:', sessionError);
         throw sessionError;
+      }
+
+      if (!sessionData?.session) {
+        Alert.alert('Error', 'Unable to establish a session. Please try the recovery link again.');
+        setLoading(false);
+        return;
       }
 
       const { error: updateError } = await supabase.auth.updateUser({ password: newPassword });
       if (updateError) {
+        console.error('updateUser error:', updateError);
         throw updateError;
       }
 
-      try {
-        if (Platform.OS === 'web') {
-          localStorage.removeItem('recoveryMode');
-          localStorage.removeItem('recoveryAccess');
-          localStorage.removeItem('recoveryRefresh');
-          localStorage.removeItem('recoveryEmail');
-        }
-      } catch (storageError) {
-        console.warn('Unable to clear recovery state:', storageError);
-      }
-
-      setNewPassword('');
-      setAccessToken(null);
-      setRefreshToken(null);
-      setRecoveryEmail('');
+      exitRecoveryMode({ keepSuccess: true });
       setResetSuccess(true);
       Alert.alert('Success', 'Your password has been reset. Please sign in.');
-      setMode('login');
-      recoveryTriggered.current = false;
-      forceRecovery.current = false;
     } catch (error: any) {
       console.error('Reset error:', error);
       Alert.alert('Error', error.message || 'Something went wrong during reset.');
@@ -225,24 +251,7 @@ export default function Index() {
   }
 
   const handleBackToLogin = () => {
-    setMode('login');
-    setResetSuccess(false);
-    setNewPassword('');
-    setRecoveryEmail('');
-    setAccessToken(null);
-    setRefreshToken(null);
-    forceRecovery.current = false;
-    recoveryTriggered.current = false;
-    if (Platform.OS === 'web') {
-      try {
-        localStorage.removeItem('recoveryMode');
-        localStorage.removeItem('recoveryAccess');
-        localStorage.removeItem('recoveryRefresh');
-        localStorage.removeItem('recoveryEmail');
-      } catch (error) {
-        console.warn('Unable to clear recovery state:', error);
-      }
-    }
+    exitRecoveryMode();
   };
 
   useEffect(() => {
@@ -289,6 +298,11 @@ export default function Index() {
         <TouchableOpacity style={styles.button} onPress={handlePasswordReset} disabled={loading}>
           <Text style={styles.buttonText}>{loading ? '...' : 'Update Password'}</Text>
         </TouchableOpacity>
+        {!resetSuccess && (
+          <TouchableOpacity style={styles.secondaryButton} onPress={handleBackToLogin}>
+            <Text style={styles.secondaryButtonText}>Back to Login</Text>
+          </TouchableOpacity>
+        )}
       </View>
     );
   }
