@@ -27,24 +27,18 @@ export default function Index() {
       return;
     }
 
-    const handleRedirect = () => {
-      if (mode === 'recovery') {
-        return;
-      }
+    const hash = window.location.hash.startsWith('#')
+      ? window.location.hash.substring(1)
+      : window.location.hash;
 
-      const hash = window.location.hash.startsWith('#')
-        ? window.location.hash.substring(1)
-        : window.location.hash;
-      const params = new URLSearchParams(hash);
-      const type = params.get('type');
-      const token = params.get('access_token');
-      const refresh = params.get('refresh_token');
-      const emailParam = params.get('email');
+    const params = new URLSearchParams(hash);
+    const type = params.get('type');
+    const token = params.get('access_token');
+    const refresh = params.get('refresh_token');
+    const emailParam = params.get('email');
 
-      if (type !== 'recovery' || !token) {
-        return;
-      }
-
+    if (type === 'recovery' && token) {
+      console.log('Recovery mode activated');
       window.location.hash = '';
       setMode('recovery');
       setAccessToken(token);
@@ -52,14 +46,8 @@ export default function Index() {
       if (emailParam) {
         setRecoveryEmail(emailParam);
       }
-    };
-
-    const timeout = setTimeout(handleRedirect, 500);
-
-    return () => {
-      clearTimeout(timeout);
-    };
-  }, [mode, router]);
+    }
+  }, []);
 
   async function signIn() {
     setLoading(true);
