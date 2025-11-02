@@ -51,11 +51,13 @@ export default function Index() {
         setRefreshToken(refresh ?? token);
         if (emailParam) setRecoveryEmail(emailParam);
 
-        setTimeout(() => {
-          if (window.location.hash) {
-            window.location.hash = '';
-          }
-        }, 1000);
+        if (window.history?.replaceState) {
+          window.history.replaceState(
+            null,
+            '',
+            `${window.location.pathname}${window.location.search}`,
+          );
+        }
 
         detected = true;
       }
