@@ -24,6 +24,23 @@ export default function Index() {
   const recoveryTriggered = useRef(false);
   const [bootstrapped, setBootstrapped] = useState(false);
   const forceRecovery = useRef(false);
+  const [resetSuccess, setResetSuccess] = useState(false);
+
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+
+    try {
+      if (localStorage.getItem('recoveryMode') === 'true') {
+        setMode('recovery');
+        forceRecovery.current = true;
+        recoveryTriggered.current = true;
+        setResetSuccess(false);
+      }
+    } catch (error) {
+      console.warn('Unable to read recovery state from storage:', error);
+    }
+  }, []);
+
   useLayoutEffect(() => {
     if (Platform.OS !== 'web') {
       setBootstrapped(true);
@@ -49,7 +66,16 @@ export default function Index() {
         setMode('recovery');
         setAccessToken(token);
         setRefreshToken(refresh ?? token);
+        setResetSuccess(false);
         if (emailParam) setRecoveryEmail(emailParam);
+
+        if (Platform.OS === 'web') {
+          try {
+            localStorage.setItem('recoveryMode', 'true');
+          } catch (error) {
+            console.warn('Unable to persist recovery mode flag:', error);
+          }
+        }
 
         if (window.history?.replaceState) {
           window.history.replaceState(
@@ -151,12 +177,18 @@ export default function Index() {
       }
 
       Alert.alert('Success', 'Your password has been reset successfully!');
-      setMode('login');
+      setResetSuccess(true);
+      if (Platform.OS === 'web') {
+        try {
+          localStorage.removeItem('recoveryMode');
+        } catch (error) {
+          console.warn('Unable to clear recovery mode flag:', error);
+        }
+      }
       setNewPassword('');
       setAccessToken(null);
       setRefreshToken(null);
       recoveryTriggered.current = false;
-      forceRecovery.current = false;
     } catch (error: any) {
       console.error('Reset error:', error);
       Alert.alert('Error', error.message || 'Something went wrong during reset.');
@@ -164,6 +196,24 @@ export default function Index() {
       setLoading(false);
     }
   }
+
+  const handleBackToLogin = () => {
+    setMode('login');
+    setResetSuccess(false);
+    setNewPassword('');
+    setRecoveryEmail('');
+    setAccessToken(null);
+    setRefreshToken(null);
+    if (Platform.OS === 'web') {
+      try {
+        localStorage.removeItem('recoveryMode');
+      } catch (error) {
+        console.warn('Unable to clear recovery mode flag:', error);
+      }
+    }
+    recoveryTriggered.current = false;
+    forceRecovery.current = false;
+  };
 
   useEffect(() => {
     if (mode === 'recovery' || recoveryTriggered.current || forceRecovery.current) {
@@ -183,6 +233,14 @@ export default function Index() {
     return (
       <View style={styles.container}>
         <Text style={styles.title}>Reset Your Password</Text>
+        {resetSuccess && (
+          <>
+            <Text style={styles.successText}>Your password has been reset successfully.</Text>
+            <TouchableOpacity style={styles.secondaryButton} onPress={handleBackToLogin}>
+              <Text style={styles.secondaryButtonText}>Back to Login</Text>
+            </TouchableOpacity>
+          </>
+        )}
         <TextInput
           style={styles.input}
           placeholder="Email"
@@ -277,11 +335,32 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontWeight: 'bold',
   },
+  secondaryButton: {
+    backgroundColor: '#fff',
+    borderColor: '#FF6F3C',
+    borderWidth: 1,
+    padding: 12,
+    borderRadius: 8,
+    width: '100%',
+    maxWidth: 360,
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  secondaryButtonText: {
+    color: '#FF6F3C',
+    fontWeight: '600',
+  },
   linkButton: {
     paddingVertical: 6,
   },
   linkText: {
     color: '#FF6F3C',
+    fontWeight: '600',
+  },
+  successText: {
+    color: '#2e7d32',
+    marginBottom: 12,
+    textAlign: 'center',
     fontWeight: '600',
   },
 });
