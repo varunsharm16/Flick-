@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -22,51 +22,65 @@ export default function Index() {
   const [refreshToken, setRefreshToken] = useState<string | null>(null);
   const [recoveryEmail, setRecoveryEmail] = useState('');
   const recoveryTriggered = useRef(false);
-
-  useEffect(() => {
+  const [bootstrapped, setBootstrapped] = useState(false);
+  const forceRecovery = useRef(false);
+  useLayoutEffect(() => {
     if (Platform.OS !== 'web') {
+      setBootstrapped(true);
       return;
     }
 
-    let attempts = 0;
+    let detected = false;
 
-    const checkHash = () => {
-      const hash = window.location.hash;
-      if (hash && hash.includes('type=recovery')) {
-        const params = new URLSearchParams(hash.replace('#', ''));
-        const token = params.get('access_token');
-        const refresh = params.get('refresh_token');
-        const emailParam = params.get('email');
+    const readHashOnce = () => {
+      const raw = window.location.hash || '';
+      const hash = raw.startsWith('#') ? raw.slice(1) : raw;
+      const params = new URLSearchParams(hash);
 
-        if (token) {
-          console.log('Recovery mode activated');
-          recoveryTriggered.current = true;
-          setMode('recovery');
-          setAccessToken(token);
-          setRefreshToken(refresh ?? token);
-          if (emailParam) {
-            setRecoveryEmail(emailParam);
-          }
-          setTimeout(() => {
+      const type = params.get('type');
+      const token = params.get('access_token');
+      const refresh = params.get('refresh_token');
+      const emailParam = params.get('email');
+
+      if (type === 'recovery' && token) {
+        console.log('✅ Recovery detected (layout)');
+        forceRecovery.current = true;
+        recoveryTriggered.current = true;
+        setMode('recovery');
+        setAccessToken(token);
+        setRefreshToken(refresh ?? token);
+        if (emailParam) setRecoveryEmail(emailParam);
+
+        setTimeout(() => {
+          if (window.location.hash) {
             window.location.hash = '';
-          }, 1000);
+          }
+        }, 1000);
+
+        detected = true;
+      }
+    };
+
+    readHashOnce();
+
+    if (!detected) {
+      let tries = 0;
+      const interval = setInterval(() => {
+        if (tries++ > 5) {
           clearInterval(interval);
+          setBootstrapped(true);
           return;
         }
-      }
+        readHashOnce();
+        if (forceRecovery.current) {
+          clearInterval(interval);
+          setBootstrapped(true);
+        }
+      }, 150);
+      return () => clearInterval(interval);
+    }
 
-      attempts += 1;
-      if (attempts > 5) {
-        clearInterval(interval);
-      }
-    };
-
-    const interval = setInterval(checkHash, 200);
-    checkHash();
-
-    return () => {
-      clearInterval(interval);
-    };
+    setBootstrapped(true);
   }, []);
 
   async function signIn() {
@@ -140,6 +154,7 @@ export default function Index() {
       setAccessToken(null);
       setRefreshToken(null);
       recoveryTriggered.current = false;
+      forceRecovery.current = false;
     } catch (error: any) {
       console.error('Reset error:', error);
       Alert.alert('Error', error.message || 'Something went wrong during reset.');
@@ -149,12 +164,20 @@ export default function Index() {
   }
 
   useEffect(() => {
-    if (mode === 'recovery' || recoveryTriggered.current) {
+    if (mode === 'recovery' || recoveryTriggered.current || forceRecovery.current) {
       console.log('Recovery mode persisted');
     }
   }, [mode]);
 
-  if (mode === 'recovery' || recoveryTriggered.current) {
+  if (!bootstrapped) {
+    return (
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+        <Text>Loading…</Text>
+      </View>
+    );
+  }
+
+  if (forceRecovery.current || mode === 'recovery' || recoveryTriggered.current) {
     return (
       <View style={styles.container}>
         <Text style={styles.title}>Reset Your Password</Text>
