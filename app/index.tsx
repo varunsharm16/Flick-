@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -21,6 +21,7 @@ export default function Index() {
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [refreshToken, setRefreshToken] = useState<string | null>(null);
   const [recoveryEmail, setRecoveryEmail] = useState('');
+  const recoveryTriggered = useRef(false);
 
   useEffect(() => {
     if (Platform.OS !== 'web') {
@@ -38,14 +39,17 @@ export default function Index() {
         const emailParam = params.get('email');
 
         if (token) {
-          console.log('Recovery detected');
+          console.log('Recovery mode activated');
+          recoveryTriggered.current = true;
           setMode('recovery');
           setAccessToken(token);
           setRefreshToken(refresh ?? token);
           if (emailParam) {
             setRecoveryEmail(emailParam);
           }
-          window.location.hash = '';
+          setTimeout(() => {
+            window.location.hash = '';
+          }, 1000);
           clearInterval(interval);
           return;
         }
@@ -135,6 +139,7 @@ export default function Index() {
       setNewPassword('');
       setAccessToken(null);
       setRefreshToken(null);
+      recoveryTriggered.current = false;
     } catch (error: any) {
       console.error('Reset error:', error);
       Alert.alert('Error', error.message || 'Something went wrong during reset.');
@@ -143,7 +148,13 @@ export default function Index() {
     }
   }
 
-  if (mode === 'recovery') {
+  useEffect(() => {
+    if (mode === 'recovery' || recoveryTriggered.current) {
+      console.log('Recovery mode persisted');
+    }
+  }, [mode]);
+
+  if (mode === 'recovery' || recoveryTriggered.current) {
     return (
       <View style={styles.container}>
         <Text style={styles.title}>Reset Your Password</Text>
