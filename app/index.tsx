@@ -27,26 +27,42 @@ export default function Index() {
       return;
     }
 
-    const hash = window.location.hash.startsWith('#')
-      ? window.location.hash.substring(1)
-      : window.location.hash;
+    let attempts = 0;
 
-    const params = new URLSearchParams(hash);
-    const type = params.get('type');
-    const token = params.get('access_token');
-    const refresh = params.get('refresh_token');
-    const emailParam = params.get('email');
+    const checkHash = () => {
+      const hash = window.location.hash;
+      if (hash && hash.includes('type=recovery')) {
+        const params = new URLSearchParams(hash.replace('#', ''));
+        const token = params.get('access_token');
+        const refresh = params.get('refresh_token');
+        const emailParam = params.get('email');
 
-    if (type === 'recovery' && token) {
-      console.log('Recovery mode activated');
-      window.location.hash = '';
-      setMode('recovery');
-      setAccessToken(token);
-      setRefreshToken(refresh ?? token);
-      if (emailParam) {
-        setRecoveryEmail(emailParam);
+        if (token) {
+          console.log('Recovery detected');
+          setMode('recovery');
+          setAccessToken(token);
+          setRefreshToken(refresh ?? token);
+          if (emailParam) {
+            setRecoveryEmail(emailParam);
+          }
+          window.location.hash = '';
+          clearInterval(interval);
+          return;
+        }
       }
-    }
+
+      attempts += 1;
+      if (attempts > 5) {
+        clearInterval(interval);
+      }
+    };
+
+    const interval = setInterval(checkHash, 200);
+    checkHash();
+
+    return () => {
+      clearInterval(interval);
+    };
   }, []);
 
   async function signIn() {
