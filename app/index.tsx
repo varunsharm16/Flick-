@@ -35,6 +35,18 @@ export default function Index() {
         forceRecovery.current = true;
         recoveryTriggered.current = true;
         setResetSuccess(false);
+
+        const savedAccess = localStorage.getItem('recoveryAccess');
+        const savedRefresh = localStorage.getItem('recoveryRefresh');
+        const savedEmail = localStorage.getItem('recoveryEmail');
+
+        if (savedAccess) setAccessToken(savedAccess);
+        if (savedRefresh) setRefreshToken(savedRefresh);
+        if (savedEmail) setRecoveryEmail(savedEmail);
+
+        if (!savedAccess) {
+          console.log('No recovery token found in storage.');
+        }
       }
     } catch (error) {
       console.warn('Unable to read recovery state from storage:', error);
@@ -72,8 +84,11 @@ export default function Index() {
         if (Platform.OS === 'web') {
           try {
             localStorage.setItem('recoveryMode', 'true');
+            localStorage.setItem('recoveryAccess', token);
+            localStorage.setItem('recoveryRefresh', refresh ?? token);
+            if (emailParam) localStorage.setItem('recoveryEmail', emailParam);
           } catch (error) {
-            console.warn('Unable to persist recovery mode flag:', error);
+            console.warn('Unable to persist recovery state:', error);
           }
         }
 
@@ -151,21 +166,26 @@ export default function Index() {
   }
 
   async function handlePasswordReset() {
-    if (!accessToken) {
-      Alert.alert('Error', 'Reset token missing or invalid. Please use the link from your email.');
-      return;
-    }
-
-    if (newPassword.length < 6) {
-      Alert.alert('Error', 'Password must be at least 6 characters long.');
-      return;
-    }
-
-    setLoading(true);
     try {
+      const token = accessToken ?? (Platform.OS === 'web' ? localStorage.getItem('recoveryAccess') : null);
+      const refresh =
+        (refreshToken ?? (Platform.OS === 'web' ? localStorage.getItem('recoveryRefresh') : null)) || token || null;
+
+      if (!token) {
+        Alert.alert('Error', 'Reset token missing. Re-open the email link or go back to login.');
+        return;
+      }
+
+      if (newPassword.length < 6) {
+        Alert.alert('Error', 'Password must be at least 6 characters long.');
+        return;
+      }
+
+      setLoading(true);
+
       const { error: sessionError } = await supabase.auth.setSession({
-        access_token: accessToken,
-        refresh_token: refreshToken ?? accessToken,
+        access_token: token,
+        refresh_token: refresh ?? token,
       });
       if (sessionError) {
         throw sessionError;
@@ -176,19 +196,26 @@ export default function Index() {
         throw updateError;
       }
 
-      Alert.alert('Success', 'Your password has been reset successfully!');
-      setResetSuccess(true);
-      if (Platform.OS === 'web') {
-        try {
+      try {
+        if (Platform.OS === 'web') {
           localStorage.removeItem('recoveryMode');
-        } catch (error) {
-          console.warn('Unable to clear recovery mode flag:', error);
+          localStorage.removeItem('recoveryAccess');
+          localStorage.removeItem('recoveryRefresh');
+          localStorage.removeItem('recoveryEmail');
         }
+      } catch (storageError) {
+        console.warn('Unable to clear recovery state:', storageError);
       }
+
       setNewPassword('');
       setAccessToken(null);
       setRefreshToken(null);
+      setRecoveryEmail('');
+      setResetSuccess(true);
+      Alert.alert('Success', 'Your password has been reset. Please sign in.');
+      setMode('login');
       recoveryTriggered.current = false;
+      forceRecovery.current = false;
     } catch (error: any) {
       console.error('Reset error:', error);
       Alert.alert('Error', error.message || 'Something went wrong during reset.');
@@ -204,15 +231,18 @@ export default function Index() {
     setRecoveryEmail('');
     setAccessToken(null);
     setRefreshToken(null);
+    forceRecovery.current = false;
+    recoveryTriggered.current = false;
     if (Platform.OS === 'web') {
       try {
         localStorage.removeItem('recoveryMode');
+        localStorage.removeItem('recoveryAccess');
+        localStorage.removeItem('recoveryRefresh');
+        localStorage.removeItem('recoveryEmail');
       } catch (error) {
-        console.warn('Unable to clear recovery mode flag:', error);
+        console.warn('Unable to clear recovery state:', error);
       }
     }
-    recoveryTriggered.current = false;
-    forceRecovery.current = false;
   };
 
   useEffect(() => {
@@ -266,6 +296,10 @@ export default function Index() {
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Flick Login</Text>
+
+      {resetSuccess && (
+        <Text style={styles.successText}>Your password has been reset. Please sign in.</Text>
+      )}
 
       <TextInput
         style={styles.input}
