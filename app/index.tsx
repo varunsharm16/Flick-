@@ -1,9 +1,10 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { View, Text, Button, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 
 export default function Index() {
   const router = useRouter();
+  const hasRedirectedRef = useRef(false);
 
   useEffect(() => {
     if (Platform.OS !== 'web') {
@@ -13,20 +14,23 @@ export default function Index() {
     let redirectTimeout: ReturnType<typeof setTimeout> | undefined;
 
     const handleRedirect = () => {
-      const hash = window.location.hash;
-      const match = hash.match(/access_token=([^&]+)/);
-
-      if (!match) {
+      if (hasRedirectedRef.current) {
         return;
       }
 
-      const token = decodeURIComponent(match[1]);
+      const hash = window.location.hash.startsWith('#')
+        ? window.location.hash.substring(1)
+        : window.location.hash;
+      const params = new URLSearchParams(hash);
+      const type = params.get('type');
+      const token = params.get('access_token');
 
-      if (!token) {
+      if (type !== 'recovery' || !token) {
         return;
       }
 
       window.location.hash = '';
+      hasRedirectedRef.current = true;
 
       redirectTimeout = setTimeout(() => {
         router.replace(`/ResetPassword?token=${token}`);
