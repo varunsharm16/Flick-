@@ -8,6 +8,8 @@ export default function ResetPassword() {
   const router = useRouter();
   const [newPassword, setNewPassword] = useState('');
   const [accessToken, setAccessToken] = useState<string | null>(null);
+  const [statusMessage, setStatusMessage] = useState('');
+  const [isSuccess, setIsSuccess] = useState<boolean | null>(null);
 
   useEffect(() => {
     const handleDeepLink = async () => {
@@ -26,13 +28,22 @@ export default function ResetPassword() {
   }, []);
 
   async function handleReset() {
+    setStatusMessage('');
+    setIsSuccess(null);
+
     if (!accessToken) {
-      Alert.alert('Error', 'Reset token missing or invalid. Please use the link from your email.');
+      const message = 'Reset token missing or invalid. Please use the link from your email.';
+      Alert.alert('Error', message);
+      setStatusMessage(message);
+      setIsSuccess(false);
       return;
     }
 
     if (newPassword.length < 6) {
-      Alert.alert('Error', 'Password must be at least 6 characters long.');
+      const message = 'Password must be at least 6 characters long.';
+      Alert.alert('Error', message);
+      setStatusMessage(message);
+      setIsSuccess(false);
       return;
     }
 
@@ -48,27 +59,50 @@ export default function ResetPassword() {
       const { error: updateError } = await supabase.auth.updateUser({ password: newPassword });
       if (updateError) throw updateError;
 
-      Alert.alert('Success', 'Your password has been reset successfully!');
+      const message = 'Your password has been reset successfully!';
+      Alert.alert('Success', message);
+      setStatusMessage(message);
+      setIsSuccess(true);
       router.replace('/Auth'); // ✅ Go back to login page
     } catch (error: any) {
       console.error('Reset error:', error);
-      Alert.alert('Error', error.message || 'Something went wrong during reset.');
+      const message = error.message || 'Something went wrong during reset.';
+      Alert.alert('Error', message);
+      setStatusMessage(message);
+      setIsSuccess(false);
     }
   }
 
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Reset Your Password</Text>
-      <TextInput
-        style={styles.input}
-        placeholder="Enter new password"
-        secureTextEntry
-        value={newPassword}
-        onChangeText={setNewPassword}
-      />
+      <Text style={styles.description}>
+        Enter your new password in the space below to complete the reset process.
+      </Text>
+      <View style={styles.inputContainer}>
+        <Text style={styles.inputLabel}>New Password</Text>
+        <TextInput
+          style={styles.input}
+          placeholder="Enter new password"
+          secureTextEntry
+          value={newPassword}
+          onChangeText={setNewPassword}
+        />
+      </View>
       <TouchableOpacity style={styles.button} onPress={handleReset}>
-        <Text style={styles.buttonText}>Confirm Reset</Text>
+        <Text style={styles.buttonText}>Submit New Password</Text>
       </TouchableOpacity>
+      {statusMessage ? (
+        <Text
+          style={[
+            styles.statusMessage,
+            isSuccess === true && styles.successMessage,
+            isSuccess === false && styles.errorMessage,
+          ]}
+        >
+          {statusMessage}
+        </Text>
+      ) : null}
     </View>
   );
 }
@@ -76,6 +110,17 @@ export default function ResetPassword() {
 const styles = StyleSheet.create({
   container: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 },
   title: { fontSize: 22, fontWeight: 'bold', marginBottom: 20 },
+  description: { fontSize: 16, textAlign: 'center', marginBottom: 20, color: '#4a4a4a' },
+  inputContainer: {
+    width: '100%',
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+    borderRadius: 12,
+    backgroundColor: '#fafafa',
+    marginBottom: 20,
+  },
+  inputLabel: { fontSize: 14, fontWeight: '600', marginBottom: 8, color: '#333' },
   input: {
     width: '100%',
     padding: 12,
@@ -91,4 +136,7 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   buttonText: { color: '#fff', fontWeight: 'bold', textAlign: 'center' },
+  statusMessage: { marginTop: 16, fontSize: 14, textAlign: 'center' },
+  successMessage: { color: '#2f9d63' },
+  errorMessage: { color: '#d93025' },
 });
