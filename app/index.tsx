@@ -10,21 +10,38 @@ export default function Index() {
       return;
     }
 
-    const hash = window.location.hash;
-    const match = hash.match(/access_token=([^&]+)/);
+    let redirectTimeout: ReturnType<typeof setTimeout> | undefined;
 
-    if (!match) {
-      return;
-    }
+    const handleRedirect = () => {
+      const hash = window.location.hash;
+      const match = hash.match(/access_token=([^&]+)/);
 
-    const token = decodeURIComponent(match[1]);
+      if (!match) {
+        return;
+      }
 
-    if (!token) {
-      return;
-    }
+      const token = decodeURIComponent(match[1]);
 
-    window.location.hash = '';
-    router.replace(`/ResetPassword?token=${token}`);
+      if (!token) {
+        return;
+      }
+
+      window.location.hash = '';
+
+      redirectTimeout = setTimeout(() => {
+        router.replace(`/ResetPassword?token=${token}`);
+      }, 300);
+
+    };
+
+    const timeout = setTimeout(handleRedirect, 500);
+
+    return () => {
+      clearTimeout(timeout);
+      if (redirectTimeout) {
+        clearTimeout(redirectTimeout);
+      }
+    };
   }, [router]);
 
   return (
