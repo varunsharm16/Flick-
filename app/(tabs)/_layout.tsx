@@ -1,28 +1,45 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { Tabs } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import type { BottomTabBarProps } from "@react-navigation/bottom-tabs";
-import { Platform, StyleSheet, Text, TouchableOpacity, View } from "react-native";
-import { LinearGradient } from "expo-linear-gradient";
+import { Keyboard, Platform, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 const FlickTabBar: React.FC<BottomTabBarProps> = ({ state, descriptors, navigation }) => {
   const insets = useSafeAreaInsets();
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
+
+  useEffect(() => {
+    const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+    const hideEvent = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+
+    const showSub = Keyboard.addListener(showEvent, () => setKeyboardVisible(true));
+    const hideSub = Keyboard.addListener(hideEvent, () => setKeyboardVisible(false));
+
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
+
+  const activeRoute = state.routes[state.index]?.name;
+
+  if (activeRoute === "record" || keyboardVisible) {
+    return null;
+  }
+
+  const containerPadding = Math.max(insets.bottom - 4, 12);
+  const bottomOffset = Math.max(insets.bottom * 0.35, 6);
 
   return (
-    <View style={[styles.tabBarContainer, { paddingBottom: Math.max(insets.bottom, 12) }]}> 
-      <LinearGradient
-        colors={["#ffffff", "#f7f8fb"]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.tabBar}
-      >
+    <View style={[styles.tabBarContainer, { paddingBottom: containerPadding, bottom: bottomOffset }]}> 
+      <View style={styles.tabBar}>
         {state.routes.map((route, index) => {
           const { options } = descriptors[route.key];
           const label =
-            options.tabBarLabel !== undefined
+            typeof options.tabBarLabel === "string"
               ? options.tabBarLabel
-              : options.title !== undefined
+              : typeof options.title === "string"
               ? options.title
               : route.name;
           const isFocused = state.index === index;
@@ -48,37 +65,26 @@ const FlickTabBar: React.FC<BottomTabBarProps> = ({ state, descriptors, navigati
 
           if (route.name === "record") {
             return (
-              <View key={route.key} style={styles.recordWrapper}>
-                <TouchableOpacity
-                  accessibilityRole="button"
-                  accessibilityLabel={typeof label === "string" ? label : undefined}
-                  accessibilityState={isFocused ? { selected: true } : undefined}
-                  onPress={onPress}
-                  onLongPress={onLongPress}
-                  activeOpacity={0.85}
-                >
-                  <LinearGradient
-                    colors={isFocused ? ["#fe646f", "#f9464f"] : ["#111827", "#111827"]}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={[styles.recordButton, isFocused && styles.recordButtonFocused]}
-                  >
-                    <View style={styles.plusOuter}>
-                      <Ionicons
-                        name="add"
-                        size={30}
-                        color={isFocused ? "#fff" : "#fe646f"}
-                        style={styles.plusIcon}
-                      />
-                    </View>
-                  </LinearGradient>
-                  <Text style={[styles.recordLabel, isFocused && styles.recordLabelActive]}>Record</Text>
-                </TouchableOpacity>
-              </View>
+              <TouchableOpacity
+                key={route.key}
+                accessibilityRole="button"
+                accessibilityLabel={typeof label === "string" ? label : undefined}
+                accessibilityState={isFocused ? { selected: true } : undefined}
+                onPress={onPress}
+                onLongPress={onLongPress}
+                style={[styles.recordTrigger, isFocused && styles.recordTriggerActive]}
+                activeOpacity={0.88}
+              >
+                <Ionicons
+                  name={isFocused ? "radio-button-on" : "radio-button-off"}
+                  size={26}
+                  color={isFocused ? "#0b0b0b" : "#ffb74d"}
+                />
+              </TouchableOpacity>
             );
           }
 
-          const color = isFocused ? "#111827" : "#9ca3af";
+          const iconColor = isFocused ? "#ff9100" : "#f8f1d2";
 
           return (
             <TouchableOpacity
@@ -89,22 +95,22 @@ const FlickTabBar: React.FC<BottomTabBarProps> = ({ state, descriptors, navigati
               onPress={onPress}
               onLongPress={onLongPress}
               style={styles.tabItem}
-              activeOpacity={0.7}
+              activeOpacity={0.8}
             >
               {options.tabBarIcon ? (
                 options.tabBarIcon({
                   focused: isFocused,
-                  color,
+                  color: iconColor,
                   size: 24,
                 })
               ) : (
-                <Ionicons name="ellipse" size={24} color={color} />
+                <Ionicons name="ellipse" size={24} color={iconColor} />
               )}
               <Text style={[styles.tabLabel, isFocused && styles.tabLabelActive]}>{label as string}</Text>
             </TouchableOpacity>
           );
         })}
-      </LinearGradient>
+      </View>
     </View>
   );
 };
@@ -113,20 +119,18 @@ export default function TabLayout() {
   return (
     <Tabs screenOptions={{ headerShown: false }} tabBar={(props) => <FlickTabBar {...props} /> }>
       <Tabs.Screen
+        name="record"
+        options={{
+          title: "Record",
+          tabBarIcon: ({ color, size }) => <Ionicons name="radio-button-on" size={size} color={color} />,
+        }}
+      />
+      <Tabs.Screen
         name="progress"
         options={{
           title: "Progress",
           tabBarIcon: ({ color, size, focused }) => (
             <Ionicons name={focused ? "trending-up" : "trending-up-outline"} size={size} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="record"
-        options={{
-          title: "Record",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="add" size={size} color={color} />
           ),
         }}
       />
@@ -155,77 +159,54 @@ export default function TabLayout() {
 const styles = StyleSheet.create({
   tabBarContainer: {
     position: "absolute",
-    left: 16,
-    right: 16,
-    bottom: Platform.select({ ios: 20, android: 16, default: 16 }),
-    borderRadius: 32,
+    left: 18,
+    right: 18,
+    borderRadius: 28,
+    backgroundColor: "rgba(10,10,10,0.92)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
     shadowColor: "#000",
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 8,
+    shadowOpacity: 0.25,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 12 },
+    elevation: 16,
   },
   tabBar: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    borderRadius: 32,
-    paddingHorizontal: 18,
-    paddingTop: 12,
-    paddingBottom: 12,
+    paddingHorizontal: 16,
+    paddingTop: 14,
+    paddingBottom: 14,
+    gap: 12,
   },
   tabItem: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    gap: 6,
+    gap: 4,
   },
   tabLabel: {
     fontSize: 12,
-    color: "#9ca3af",
+    color: "#f8f1d2",
     fontFamily: "Montserrat-SemiBold",
-    letterSpacing: 0.2,
+    letterSpacing: 0.3,
   },
   tabLabelActive: {
-    color: "#111827",
+    color: "#ffb74d",
   },
-  recordWrapper: {
+  recordTrigger: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: "#1f1f1f",
     alignItems: "center",
     justifyContent: "center",
+    borderWidth: 2,
+    borderColor: "#ffb74d",
   },
-  recordButton: {
-    width: 66,
-    height: 66,
-    borderRadius: 33,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#111827",
-    borderWidth: 4,
-    borderColor: "#f4f4f5",
-  },
-  recordButtonFocused: {
-    borderColor: "#fbcfe8",
-  },
-  plusOuter: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: "#fff",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  plusIcon: {
-    marginLeft: 1,
-  },
-  recordLabel: {
-    marginTop: 8,
-    fontSize: 12,
-    letterSpacing: 0.2,
-    color: "#6b7280",
-    textAlign: "center",
-    fontFamily: "Montserrat-SemiBold",
-  },
-  recordLabelActive: {
-    color: "#111827",
+  recordTriggerActive: {
+    backgroundColor: "#ffd54f",
+    borderColor: "#ffd54f",
   },
 });

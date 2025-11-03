@@ -6,6 +6,7 @@ import {
   Text,
   TouchableOpacity,
   View,
+  useWindowDimensions,
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
@@ -35,6 +36,40 @@ const FALLBACK_TREND: TrendPoint[] = [
   { label: "D7", value: 67 },
 ];
 
+const RANGE_DAY_SPAN: Record<RangeOption, number> = {
+  "7D": 7,
+  "30D": 30,
+  "90D": 90,
+  All: 150,
+};
+
+const weekdayFormatter = new Intl.DateTimeFormat("en-US", { weekday: "short" });
+const dayFormatter = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+const monthFormatter = new Intl.DateTimeFormat("en-US", { month: "short" });
+
+const buildXAxisLabels = (range: RangeOption, total: number) => {
+  if (total <= 0) return [];
+  const span = RANGE_DAY_SPAN[range] ?? 30;
+  const step = Math.max(1, Math.round(span / Math.max(total - 1, 1)));
+  const labels: string[] = [];
+
+  for (let index = 0; index < total; index += 1) {
+    const daysAgo = step * (total - 1 - index);
+    const date = new Date();
+    date.setDate(date.getDate() - daysAgo);
+
+    if (range === "7D") {
+      labels.push(weekdayFormatter.format(date));
+    } else if (range === "30D" || range === "90D") {
+      labels.push(dayFormatter.format(date));
+    } else {
+      labels.push(monthFormatter.format(date));
+    }
+  }
+
+  return labels;
+};
+
 type Widget = {
   id: string;
   title: string;
@@ -62,31 +97,37 @@ const ProgressScreen: React.FC = () => {
     queryFn: () => api.getProgress(range.toLowerCase()),
   });
 
-  const highlightStats = useMemo(() => {
-    if (!progress) {
-      return [
-        { label: "Average accuracy", value: "--" },
-        { label: "Shot consistency", value: "--" },
-        { label: "Sessions this week", value: "--" },
-      ];
-    }
-    return [
-      { label: "Average accuracy", value: `${Math.round(progress.shootingAccuracy * 100)}%` },
-      { label: "Shot consistency", value: `${Math.round(progress.formConsistency * 100)}%` },
-      { label: "Sessions this week", value: `${progress.shotsTaken > 0 ? Math.max(1, Math.round(progress.shotsTaken / 60)) : 0}` },
-    ];
-  }, [progress]);
+  const { width } = useWindowDimensions();
+  const horizontalPadding = useMemo(() => Math.max(16, Math.min(28, width * 0.06)), [width]);
 
-  const chartData = useMemo<TrendPoint[]>(() => {
-    return (
-      progress?.accuracyTrend?.map((point, index) => ({
+  const rawTrend = useMemo<TrendPoint[]>(() => {
+    if (progress?.accuracyTrend?.length) {
+      return progress.accuracyTrend.map((point, index) => ({
         label: point.day ?? `D${index + 1}`,
         value: Math.round((point.v ?? 0) * 100),
-      })) ?? []
-    );
+      }));
+    }
+    return FALLBACK_TREND;
   }, [progress]);
 
-  const resolvedChartData = chartData.length > 0 ? chartData : FALLBACK_TREND;
+  const chartLabels = useMemo(() => buildXAxisLabels(range, rawTrend.length), [range, rawTrend.length]);
+
+  const chartData = useMemo<TrendPoint[]>(() => {
+    if (!rawTrend.length) return [];
+    return rawTrend.map((point, index) => ({
+      label: chartLabels[index] ?? point.label,
+      value: point.value,
+    }));
+  }, [chartLabels, rawTrend]);
+
+  const resolvedChartData = chartData;
+
+  const chartSpacing = useMemo(() => {
+    if (chartData.length <= 6) return 42;
+    if (chartData.length <= 10) return 28;
+    if (chartData.length <= 18) return 20;
+    return 14;
+  }, [chartData.length]);
 
   const widgets = useMemo<Widget[]>(() => {
     if (!progress) return [];
@@ -176,21 +217,15 @@ const ProgressScreen: React.FC = () => {
   };
 
   return (
-    <SafeAreaView style={[styles.safeArea, { paddingTop: insets.top + 12 }]} edges={['top']}>
+    <SafeAreaView style={[styles.safeArea, { paddingTop: insets.top + 16 }]} edges={['top']}>
       <ScrollView
-        contentContainerStyle={{ paddingBottom: insets.bottom + 140, paddingHorizontal: 20 }}
+        contentContainerStyle={{ paddingBottom: insets.bottom + 140, paddingHorizontal: horizontalPadding }}
         contentInsetAdjustmentBehavior="automatic"
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.header}>
-          <View>
-            <Text style={styles.title}>Your Shooting Progress</Text>
-            <Text style={styles.subtitle}>Dial in the range that tells your story.</Text>
-          </View>
-          <TouchableOpacity style={styles.shareButton}>
-            <Ionicons name="share-outline" size={18} color="#0f172a" />
-            <Text style={styles.shareLabel}>Share</Text>
-          </TouchableOpacity>
+          <Text style={styles.title}>Your Shooting Progress</Text>
+          <Text style={styles.subtitle}>Dial in the range that tells your story.</Text>
         </View>
 
         <View style={styles.rangeRow}>
@@ -208,14 +243,14 @@ const ProgressScreen: React.FC = () => {
           })}
         </View>
 
-        <LinearGradient colors={["#0f172a", "#052e16"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.chartCard}>
+        <LinearGradient colors={["#201000", "#0f0600"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.chartCard}>
           <View style={styles.chartHeader}>
             <View>
               <Text style={styles.chartTitle}>Accuracy trend</Text>
-              <Text style={styles.chartSubtitle}>Green means you\'re in rhythm.</Text>
+              <Text style={styles.chartSubtitle}>Watch the arc adjust with your range.</Text>
             </View>
             <View style={styles.accuracyBadge}>
-              <Ionicons name="checkmark-circle" size={18} color="#bbf7d0" />
+              <Ionicons name="sparkles" size={18} color="#0b0b0b" />
               <Text style={styles.accuracyBadgeLabel}>
                 {progress ? `${Math.round(progress.shootingAccuracy * 100)}%` : "--"}
               </Text>
@@ -228,17 +263,17 @@ const ProgressScreen: React.FC = () => {
               areaChart
               height={200}
               thickness={3}
-              spacing={32}
-              initialSpacing={20}
-              color="#34d399"
-              startFillColor="#34d399"
-              endFillColor="#34d399"
-              startOpacity={0.18}
-              endOpacity={0.02}
-              yAxisColor="rgba(226,232,240,0.25)"
-              xAxisColor="rgba(226,232,240,0.18)"
-              yAxisTextStyle={{ color: "rgba(226,232,240,0.7)", fontFamily: "Montserrat-SemiBold", fontSize: 10 }}
-              xAxisLabelTextStyle={{ color: "rgba(226,232,240,0.6)", fontFamily: "Montserrat-SemiBold", fontSize: 10 }}
+              spacing={chartSpacing}
+              initialSpacing={chartSpacing}
+              color="#ffb74d"
+              startFillColor="#ffb74d"
+              endFillColor="#ff9100"
+              startOpacity={0.24}
+              endOpacity={0.08}
+              yAxisColor="rgba(255,255,255,0.12)"
+              xAxisColor="rgba(255,255,255,0.12)"
+              yAxisTextStyle={{ color: "rgba(255,255,255,0.65)", fontFamily: "Montserrat-SemiBold", fontSize: 10 }}
+              xAxisLabelTextStyle={{ color: "rgba(255,255,255,0.78)", fontFamily: "Montserrat-SemiBold", fontSize: 10 }}
               hideDataPoints
               yAxisLabelPrefix=""
               yAxisLabelSuffix="%"
@@ -248,23 +283,14 @@ const ProgressScreen: React.FC = () => {
           </View>
         </LinearGradient>
 
-        <View style={styles.highlightRow}>
-          {highlightStats.map((item) => (
-            <LinearGradient key={item.label} colors={["#ffffff", "#f1f5f9"]} style={styles.highlightCard}>
-              <Text style={styles.highlightLabel}>{item.label}</Text>
-              <Text style={styles.highlightValue}>{item.value}</Text>
-            </LinearGradient>
-          ))}
-        </View>
-
         <View style={styles.streakCard}>
-          <LinearGradient colors={["#fff1f2", "#ffe4e6"]} style={styles.streakInner}>
+          <LinearGradient colors={["#2b1400", "#120700"]} style={styles.streakInner}>
             <View>
               <Text style={styles.streakLabel}>Day streak</Text>
               <Text style={styles.streakValue}>{streakValue} days</Text>
             </View>
             <View style={styles.streakIcon}>
-              <Ionicons name="flame" size={28} color="#fb7185" />
+              <Ionicons name="flame" size={28} color="#ff9100" />
             </View>
           </LinearGradient>
         </View>
@@ -305,7 +331,7 @@ const ProgressScreen: React.FC = () => {
           >
             <View style={styles.modalHeader}>
               <TouchableOpacity style={styles.modalClose} onPress={() => setSelectedWidget(null)}>
-                <Ionicons name="chevron-back" size={22} color="#0f172a" />
+                <Ionicons name="chevron-back" size={22} color="#ffe8b0" />
               </TouchableOpacity>
               <Text style={styles.modalTitle}>{selectedWidget?.title}</Text>
               <View style={{ width: 36 }} />
@@ -323,7 +349,7 @@ const ProgressScreen: React.FC = () => {
               </Text>
             </View>
 
-            <LinearGradient colors={["#0f172a", "#1e293b"]} style={styles.modalChart}>
+            <LinearGradient colors={["#2b1400", "#110600"]} style={styles.modalChart}>
               <View style={styles.modalChartInner}>
                 <LineChart
                   data={(selectedWidget?.trend ?? resolvedChartData).map((point) => ({
@@ -334,17 +360,17 @@ const ProgressScreen: React.FC = () => {
                   areaChart
                   height={220}
                   thickness={3}
-                  spacing={36}
-                  initialSpacing={24}
-                  color="#60a5fa"
-                  startFillColor="#60a5fa"
-                  endFillColor="#60a5fa"
-                  startOpacity={0.22}
-                  endOpacity={0.04}
-                  yAxisColor="rgba(226,232,240,0.15)"
-                  xAxisColor="rgba(148,163,184,0.25)"
-                  yAxisTextStyle={{ color: "rgba(226,232,240,0.7)", fontFamily: "Montserrat-SemiBold", fontSize: 10 }}
-                  xAxisLabelTextStyle={{ color: "rgba(226,232,240,0.7)", fontFamily: "Montserrat-SemiBold", fontSize: 10 }}
+                  spacing={chartSpacing}
+                  initialSpacing={chartSpacing}
+                  color="#ffb74d"
+                  startFillColor="#ffb74d"
+                  endFillColor="#ff9100"
+                  startOpacity={0.26}
+                  endOpacity={0.1}
+                  yAxisColor="rgba(255,255,255,0.12)"
+                  xAxisColor="rgba(255,255,255,0.12)"
+                  yAxisTextStyle={{ color: "rgba(255,255,255,0.68)", fontFamily: "Montserrat-SemiBold", fontSize: 10 }}
+                  xAxisLabelTextStyle={{ color: "rgba(255,255,255,0.78)", fontFamily: "Montserrat-SemiBold", fontSize: 10 }}
                   hideDataPoints
                   yAxisLabelSuffix="%"
                   noOfSections={5}
@@ -372,74 +398,66 @@ const ProgressScreen: React.FC = () => {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: "#f8fafc",
+    backgroundColor: "#050505",
   },
   header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
     marginBottom: 24,
     marginTop: 12,
+    gap: 6,
+    alignItems: "flex-start",
   },
   title: {
     fontSize: 28,
     fontFamily: "Montserrat-Bold",
-    color: "#0f172a",
-    letterSpacing: 0.2,
+    color: "#fdf7eb",
+    letterSpacing: 0.4,
   },
   subtitle: {
     fontSize: 14,
-    color: "#475569",
-    marginTop: 6,
-    fontFamily: "Montserrat-SemiBold",
-  },
-  shareButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    backgroundColor: "#e2e8f0",
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 999,
-  },
-  shareLabel: {
-    fontSize: 12,
-    color: "#0f172a",
+    color: "#f1c27d",
     fontFamily: "Montserrat-SemiBold",
   },
   rangeRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    marginBottom: 20,
-    gap: 10,
+    marginBottom: 24,
+    gap: 12,
   },
   rangeChip: {
     flex: 1,
-    paddingVertical: 10,
-    borderRadius: 16,
-    backgroundColor: "#e2e8f0",
+    paddingVertical: 12,
+    borderRadius: 18,
+    backgroundColor: "rgba(255,255,255,0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.12)",
     alignItems: "center",
   },
   rangeChipActive: {
-    backgroundColor: "#0f172a",
+    backgroundColor: "#ff9100",
+    borderColor: "#ff9100",
+    shadowColor: "#ff9100",
+    shadowOpacity: 0.35,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 6,
   },
   rangeLabel: {
     fontSize: 12,
-    color: "#64748b",
+    color: "rgba(255,255,255,0.68)",
     fontFamily: "Montserrat-SemiBold",
     letterSpacing: 0.3,
   },
   rangeLabelActive: {
-    color: "#f8fafc",
+    color: "#0b0b0b",
   },
   chartCard: {
     borderRadius: 24,
     padding: 20,
-    shadowColor: "#0f172a",
-    shadowOpacity: 0.2,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 12 },
-    elevation: 6,
+    shadowColor: "#ff9100",
+    shadowOpacity: 0.22,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 14 },
+    elevation: 10,
   },
   chartWrapper: {
     marginTop: 12,
@@ -454,51 +472,27 @@ const styles = StyleSheet.create({
   },
   chartTitle: {
     fontSize: 18,
-    color: "#bbf7d0",
+    color: "#ffe8b0",
     fontFamily: "Montserrat-SemiBold",
   },
   chartSubtitle: {
     fontSize: 13,
-    color: "#94f3c8",
-    marginTop: 2,
+    color: "rgba(255,224,178,0.82)",
+    marginTop: 4,
     fontFamily: "Montserrat-SemiBold",
   },
   accuracyBadge: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    backgroundColor: "rgba(15,118,110,0.35)",
-    paddingHorizontal: 12,
+    backgroundColor: "#ffd54f",
+    paddingHorizontal: 16,
     paddingVertical: 8,
-    borderRadius: 20,
+    borderRadius: 999,
   },
   accuracyBadgeLabel: {
-    color: "#f8fafc",
+    color: "#0b0b0b",
     fontSize: 14,
-    fontFamily: "Montserrat-Bold",
-  },
-  highlightRow: {
-    flexDirection: "row",
-    gap: 12,
-    marginTop: 24,
-    flexWrap: "wrap",
-  },
-  highlightCard: {
-    flexBasis: "31%",
-    padding: 18,
-    borderRadius: 20,
-    marginBottom: 12,
-    minWidth: 140,
-  },
-  highlightLabel: {
-    fontSize: 13,
-    color: "#475569",
-    fontFamily: "Montserrat-SemiBold",
-    marginBottom: 10,
-  },
-  highlightValue: {
-    fontSize: 22,
-    color: "#0f172a",
     fontFamily: "Montserrat-Bold",
   },
   streakCard: {
@@ -513,19 +507,19 @@ const styles = StyleSheet.create({
   },
   streakLabel: {
     fontSize: 14,
-    color: "#881337",
+    color: "#ffcc80",
     fontFamily: "Montserrat-SemiBold",
   },
   streakValue: {
     fontSize: 24,
-    color: "#be123c",
+    color: "#ffe8b0",
     fontFamily: "Montserrat-Bold",
   },
   streakIcon: {
     width: 52,
     height: 52,
     borderRadius: 26,
-    backgroundColor: "rgba(244,63,94,0.12)",
+    backgroundColor: "rgba(255,145,0,0.18)",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -538,14 +532,16 @@ const styles = StyleSheet.create({
   },
   widgetCard: {
     flexBasis: "47%",
-    backgroundColor: "#ffffff",
+    backgroundColor: "rgba(255,255,255,0.06)",
     borderRadius: 22,
     padding: 18,
-    shadowColor: "#0f172a",
-    shadowOpacity: 0.06,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 3,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.12)",
+    shadowColor: "#000",
+    shadowOpacity: 0.3,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 8,
   },
   widgetHeader: {
     flexDirection: "row",
@@ -554,24 +550,24 @@ const styles = StyleSheet.create({
   },
   widgetTitle: {
     fontSize: 14,
-    color: "#0f172a",
+    color: "#ffe8b0",
     fontFamily: "Montserrat-SemiBold",
   },
   widgetBadge: {
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 999,
-    backgroundColor: "#fee2e2",
+    backgroundColor: "#ff9100",
   },
   widgetBadgeText: {
     fontSize: 10,
-    color: "#be123c",
+    color: "#0b0b0b",
     fontFamily: "Montserrat-Bold",
   },
   widgetValue: {
     marginTop: 18,
     fontSize: 26,
-    color: "#0f172a",
+    color: "#fff5d6",
     fontFamily: "Montserrat-Bold",
   },
   widgetChange: {
@@ -580,21 +576,21 @@ const styles = StyleSheet.create({
     fontFamily: "Montserrat-SemiBold",
   },
   widgetPositive: {
-    color: "#047857",
+    color: "#ffbf69",
   },
   widgetNegative: {
-    color: "#be123c",
+    color: "#ff7043",
   },
   widgetHint: {
     marginTop: 14,
     fontSize: 11,
-    color: "#94a3b8",
+    color: "rgba(255,255,255,0.55)",
     fontFamily: "Montserrat-SemiBold",
     letterSpacing: 0.3,
   },
   modalSafe: {
     flex: 1,
-    backgroundColor: "#f8fafc",
+    backgroundColor: "#050505",
   },
   modalHeader: {
     flexDirection: "row",
@@ -607,13 +603,13 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: "#e2e8f0",
+    backgroundColor: "rgba(255,255,255,0.1)",
     alignItems: "center",
     justifyContent: "center",
   },
   modalTitle: {
     fontSize: 18,
-    color: "#0f172a",
+    color: "#ffe8b0",
     fontFamily: "Montserrat-Bold",
   },
   modalValueRow: {
@@ -626,7 +622,7 @@ const styles = StyleSheet.create({
   modalValue: {
     fontSize: 48,
     fontFamily: "Montserrat-Bold",
-    color: "#0f172a",
+    color: "#fff5d6",
   },
   modalChange: {
     fontSize: 20,
@@ -650,13 +646,13 @@ const styles = StyleSheet.create({
   modalSectionTitle: {
     fontSize: 16,
     fontFamily: "Montserrat-Bold",
-    color: "#0f172a",
+    color: "#ffe8b0",
     marginBottom: 10,
   },
   modalBody: {
     fontSize: 14,
     lineHeight: 22,
-    color: "#475569",
+    color: "rgba(255,255,255,0.7)",
     fontFamily: "Montserrat-SemiBold",
   },
 });
