@@ -25,6 +25,19 @@ In the output, you'll find options to open the app in a
 
 You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
 
+## Pose estimation test screen
+
+The project now ships with an Expo-compatible **TestPose** screen (`app/TestPose.tsx`) that mirrors the usage of the [`quickpose-react-native-pose-estimation`](https://github.com/quickpose/quickpose-react-native-pose-estimation) SDK. The screen renders a full-screen camera preview, overlays pose landmarks, and logs each frame to the console.
+
+Because the upstream SDK is distributed as a native module, running it inside Expo Go requires a JS shim. The default implementation in `lib/pose/quickpose-expo.ts` provides a deterministic mock so that routing, overlay, and logging can be verified without the native binary. To ship the real model in an EAS build:
+
+1. Add the QuickPose native module to your project (either by vendoring the GitHub repository or consuming the private npm package).
+2. Replace the shim inside `lib/pose/quickpose-expo.ts` with direct calls to the native bridge exposed by the SDK (for example, re-exporting the native camera view and estimate helpers).
+3. Run `npx expo prebuild` and configure the iOS/Android projects following the QuickPose README (camera permissions, ML models, etc.).
+4. Build the app with `eas build` to produce an iOS binary containing the native module.
+
+During development the mock landmarks are still rendered so that UI iterations can continue while the native integration is being finalised.
+
 ## Get a fresh project
 
 When you're ready, run:
