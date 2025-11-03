@@ -1,7 +1,7 @@
-import React, { useEffect } from 'react';
-import { View, Text, Platform, StyleSheet } from 'react-native';
-import { useRouter } from 'expo-router';
-import { supabase } from './lib/supabase';
+import React, { useEffect } from "react";
+import { View, Text, Platform, StyleSheet } from "react-native";
+import { useRouter } from "expo-router";
+import { supabase } from "./lib/supabase";
 
 export default function Index() {
   const router = useRouter();
@@ -11,19 +11,19 @@ export default function Index() {
       try {
         const { data } = await supabase.auth.getSession();
         if (data.session) {
-          router.replace('/Profile');
+          router.replace("/(tabs)/progress");
           return;
         }
 
-        if (Platform.OS === 'web') {
-          const hash = window.location.hash || '';
+        if (Platform.OS === "web") {
+          const hash = window.location.hash || "";
           router.replace(`/Auth${hash}`);
         } else {
-          router.replace('/Auth');
+          router.replace("/Auth");
         }
       } catch (error) {
-        console.error('Failed to determine initial route:', error);
-        router.replace('/Auth');
+        console.error("Failed to determine initial route:", error);
+        router.replace("/Auth");
       }
     };
 
@@ -32,7 +32,7 @@ export default function Index() {
 
   return (
     <View style={styles.container}>
-      <Text>Loading…</Text>
+      <Text style={styles.loadingText}>Loading…</Text>
     </View>
   );
 }
@@ -40,7 +40,14 @@ export default function Index() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#050505",
+  },
+  loadingText: {
+    color: "#f2f2f7",
+    fontSize: 18,
+    letterSpacing: 0.4,
+    fontFamily: "Montserrat-SemiBold",
   },
 });
