@@ -96,19 +96,19 @@ const CoachScreen: React.FC = () => {
   };
 
   return (
-    <SafeAreaView style={[styles.safeArea, { paddingTop: insets.top + 12 }]} edges={['top']}>
+    <SafeAreaView style={[styles.safeArea, { paddingTop: insets.top + 16 }]} edges={['top']}>
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Coach Flick</Text>
         <Text style={styles.headerSubtitle}>Your AI shooting assistant</Text>
       </View>
 
-      <LinearGradient colors={["#fdf2f8", "#f8fafc"]} style={styles.listGradient}>
+      <LinearGradient colors={["#1a0b00", "#050505"]} style={styles.listGradient}>
         <FlatList
           ref={listRef}
           data={messages}
           keyExtractor={(item) => item.id}
           renderItem={renderItem}
-          contentContainerStyle={{ paddingBottom: 160, paddingHorizontal: 20, paddingTop: 12 }}
+          contentContainerStyle={{ paddingBottom: insets.bottom + 180, paddingHorizontal: 20, paddingTop: 12 }}
           showsVerticalScrollIndicator={false}
         />
         {isThinking && (
@@ -116,7 +116,7 @@ const CoachScreen: React.FC = () => {
             <View style={[styles.bubble, styles.assistantBubble]}>
               <Text style={styles.assistantLabel}>Coach Flick</Text>
               <View style={styles.thinkingDots}>
-                <ActivityIndicator size="small" color="#fb7185" />
+                <ActivityIndicator size="small" color="#ff9100" />
                 <Text style={styles.thinkingText}>Thinking…</Text>
               </View>
             </View>
@@ -126,14 +126,14 @@ const CoachScreen: React.FC = () => {
 
       <KeyboardAvoidingView
         behavior={Platform.select({ ios: "padding", android: undefined })}
-        keyboardVerticalOffset={insets.bottom + 80}
+        keyboardVerticalOffset={insets.bottom + 120}
       >
-        <LinearGradient colors={["#ffffff", "#f8fafc"]} style={styles.inputBar}>
+        <LinearGradient colors={["rgba(255,255,255,0.08)", "rgba(255,255,255,0.04)"]} style={styles.inputBar}>
           <TextInput
             value={input}
             onChangeText={setInput}
             placeholder={placeholder}
-            placeholderTextColor="#94a3b8"
+            placeholderTextColor="rgba(255,255,255,0.45)"
             style={styles.input}
             multiline
           />
@@ -142,7 +142,7 @@ const CoachScreen: React.FC = () => {
             onPress={sendMessage}
             disabled={!input.trim() || isThinking}
           >
-            <Ionicons name="send" size={20} color={input.trim() ? "#f8fafc" : "#cbd5f5"} />
+            <Ionicons name="send" size={20} color={input.trim() ? "#050505" : "rgba(255,255,255,0.35)"} />
           </TouchableOpacity>
         </LinearGradient>
       </KeyboardAvoidingView>
@@ -153,7 +153,7 @@ const CoachScreen: React.FC = () => {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: "#f8fafc",
+    backgroundColor: "#050505",
   },
   header: {
     paddingHorizontal: 24,
@@ -162,16 +162,19 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 26,
     fontFamily: "Montserrat-Bold",
-    color: "#0f172a",
+    color: "#ffe8b0",
   },
   headerSubtitle: {
     fontSize: 14,
-    color: "#64748b",
+    color: "rgba(255,255,255,0.68)",
     fontFamily: "Montserrat-SemiBold",
     marginTop: 4,
   },
   listGradient: {
     flex: 1,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    overflow: "hidden",
   },
   messageRow: {
     marginVertical: 6,
@@ -190,21 +193,18 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
   },
   assistantBubble: {
-    backgroundColor: "#ffffff",
+    backgroundColor: "rgba(255,255,255,0.08)",
     borderBottomLeftRadius: 6,
-    shadowColor: "#0f172a",
-    shadowOpacity: 0.05,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 2,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.1)",
   },
   userBubble: {
-    backgroundColor: "#0f172a",
+    backgroundColor: "#ff9100",
     borderBottomRightRadius: 6,
   },
   assistantLabel: {
     fontSize: 11,
-    color: "#fb7185",
+    color: "#ffd54f",
     fontFamily: "Montserrat-Bold",
     marginBottom: 6,
   },
@@ -214,10 +214,10 @@ const styles = StyleSheet.create({
     fontFamily: "Montserrat-SemiBold",
   },
   assistantText: {
-    color: "#0f172a",
+    color: "rgba(255,255,255,0.85)",
   },
   userText: {
-    color: "#f8fafc",
+    color: "#0b0b0b",
   },
   thinkingRow: {
     paddingHorizontal: 20,
@@ -230,7 +230,7 @@ const styles = StyleSheet.create({
   },
   thinkingText: {
     fontSize: 13,
-    color: "#fb7185",
+    color: "#ff9100",
     fontFamily: "Montserrat-SemiBold",
   },
   inputBar: {
@@ -238,14 +238,11 @@ const styles = StyleSheet.create({
     alignItems: "flex-end",
     gap: 12,
     paddingHorizontal: 20,
-    paddingVertical: 18,
+    paddingVertical: 16,
+    borderTopWidth: 1,
+    borderColor: "rgba(255,255,255,0.12)",
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    shadowColor: "#0f172a",
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: -4 },
-    elevation: 8,
   },
   input: {
     flex: 1,
@@ -253,24 +250,24 @@ const styles = StyleSheet.create({
     maxHeight: 120,
     fontSize: 15,
     fontFamily: "Montserrat-SemiBold",
-    color: "#0f172a",
+    color: "#fdf7eb",
     paddingVertical: 6,
   },
   sendButton: {
     width: 46,
     height: 46,
     borderRadius: 23,
-    backgroundColor: "#e2e8f0",
+    backgroundColor: "rgba(255,255,255,0.08)",
     alignItems: "center",
     justifyContent: "center",
   },
   sendButtonActive: {
-    backgroundColor: "#fb7185",
-    shadowColor: "#fb7185",
+    backgroundColor: "#ff9100",
+    shadowColor: "#ff9100",
     shadowOpacity: 0.3,
-    shadowRadius: 8,
+    shadowRadius: 10,
     shadowOffset: { width: 0, height: 4 },
-    elevation: 4,
+    elevation: 6,
   },
 });
 
