@@ -2,11 +2,16 @@ import React, { useEffect } from "react";
 import { View, Text, Platform, StyleSheet } from "react-native";
 import { useRouter } from "expo-router";
 import { supabase } from "./lib/supabase";
+import { useAuthPersistence } from "./lib/useAuthPersistence";
+
 
 export default function Index() {
   const router = useRouter();
+  const isRestoring = useAuthPersistence();
 
   useEffect(() => {
+    if (isRestoring) return; // wait until restore completes
+
     const redirect = async () => {
       try {
         const { data } = await supabase.auth.getSession();
@@ -28,7 +33,7 @@ export default function Index() {
     };
 
     redirect();
-  }, [router]);
+  }, [router, isRestoring]);
 
   return (
     <View style={styles.container}>
