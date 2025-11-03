@@ -11,7 +11,7 @@ export default function Index() {
       try {
         const { data } = await supabase.auth.getSession();
         if (data.session) {
-          router.replace('/Profile');
+          router.replace('/(tabs)/record');
           return;
         }
 
