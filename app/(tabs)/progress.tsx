@@ -9,7 +9,7 @@ import {
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
-import { VictoryArea, VictoryAxis, VictoryChart, VictoryLine } from "victory-native";
+import { LineChart } from "react-native-gifted-charts";
 import * as Haptics from "expo-haptics";
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
@@ -20,6 +20,21 @@ const RANGE_OPTIONS = ["7D", "30D", "90D", "All"] as const;
 
 type RangeOption = (typeof RANGE_OPTIONS)[number];
 
+type TrendPoint = {
+  label: string;
+  value: number;
+};
+
+const FALLBACK_TREND: TrendPoint[] = [
+  { label: "D1", value: 60 },
+  { label: "D2", value: 62 },
+  { label: "D3", value: 64 },
+  { label: "D4", value: 63 },
+  { label: "D5", value: 65 },
+  { label: "D6", value: 66 },
+  { label: "D7", value: 67 },
+];
+
 type Widget = {
   id: string;
   title: string;
@@ -28,7 +43,7 @@ type Widget = {
   changePositive?: boolean;
   summary: string;
   description: string;
-  trend: { x: string; y: number }[];
+  trend: TrendPoint[];
   badge?: "PRO" | "CORE";
 };
 
@@ -62,14 +77,16 @@ const ProgressScreen: React.FC = () => {
     ];
   }, [progress]);
 
-  const chartData = useMemo(() => {
+  const chartData = useMemo<TrendPoint[]>(() => {
     return (
       progress?.accuracyTrend?.map((point, index) => ({
-        x: point.day ?? `D${index + 1}`,
-        y: Math.round((point.v ?? 0) * 100),
+        label: point.day ?? `D${index + 1}`,
+        value: Math.round((point.v ?? 0) * 100),
       })) ?? []
     );
   }, [progress]);
+
+  const resolvedChartData = chartData.length > 0 ? chartData : FALLBACK_TREND;
 
   const widgets = useMemo<Widget[]>(() => {
     if (!progress) return [];
@@ -83,7 +100,7 @@ const ProgressScreen: React.FC = () => {
         summary: "Your release timing has tightened up over the last few sessions. Keep stacking confident reps.",
         description:
           "Accuracy captures makes vs. attempts. The AI models each release and identifies mechanical drift before it impacts results.",
-        trend: chartData,
+        trend: resolvedChartData,
         badge: "CORE",
       },
       {
@@ -95,7 +112,7 @@ const ProgressScreen: React.FC = () => {
         summary: "Your set point and follow-through are syncing. Variability dropped by 3% this week.",
         description:
           "Consistency blends elbow alignment, wrist angle, and release height into one score. The closer to 100%, the more repeatable your shot.",
-        trend: chartData,
+        trend: resolvedChartData,
         badge: "CORE",
       },
       {
@@ -107,7 +124,7 @@ const ProgressScreen: React.FC = () => {
         summary: "Volume drives mastery. You're trending up and adding quality reps every session.",
         description:
           "Shots taken tallies logged attempts across drills. Pair it with accuracy for a complete picture of workload and efficiency.",
-        trend: chartData,
+        trend: resolvedChartData,
       },
       {
         id: "releaseTime",
@@ -118,7 +135,7 @@ const ProgressScreen: React.FC = () => {
         summary: "The ball is leaving your hand quicker without sacrificing balance. That's elite guard behavior.",
         description:
           "Release time measures catch-to-release speed. Flick flags hesitations, so you can train a lightning-fast motion.",
-        trend: chartData,
+        trend: resolvedChartData,
         badge: "PRO",
       },
       {
@@ -130,7 +147,7 @@ const ProgressScreen: React.FC = () => {
         summary: "Hold that pose! A stronger wrist snap is giving you the soft rotation coaches love.",
         description:
           "Follow through looks at wrist extension, finger spread, and hold time. It's the finishing touch for a buttery jumper.",
-        trend: chartData,
+        trend: resolvedChartData,
         badge: "PRO",
       },
       {
@@ -142,11 +159,11 @@ const ProgressScreen: React.FC = () => {
         summary: "You're keeping the ball in the 45° sweet spot. Defenders hate it, nets love it.",
         description:
           "Arc angle is tracked frame-by-frame to confirm the ball stays in the ideal launch window. We'll nudge you when it flattens.",
-        trend: chartData,
+        trend: resolvedChartData,
         badge: "PRO",
       },
     ];
-  }, [progress, chartData]);
+  }, [progress, resolvedChartData]);
 
   const streakValue = useMemo(() => {
     const base = progress ? Math.min(30, 5 + Math.round(progress.deltaShots / 2)) : 0;
@@ -204,42 +221,31 @@ const ProgressScreen: React.FC = () => {
               </Text>
             </View>
           </View>
-          <VictoryChart
-            height={220}
-            padding={{ left: 36, right: 24, top: 16, bottom: 36 }}
-            domainPadding={{ y: [20, 20], x: [12, 12] }}
-          >
-            <VictoryAxis
-              style={{
-                axis: { stroke: "rgba(226,232,240,0.2)" },
-                tickLabels: { fill: "rgba(226,232,240,0.6)", fontFamily: "Montserrat-SemiBold", fontSize: 10 },
-                grid: { stroke: "rgba(15,118,110,0.2)", strokeDasharray: "4" },
-              }}
+          <View style={styles.chartWrapper}>
+            <LineChart
+              data={resolvedChartData.map((point) => ({ label: point.label, value: point.value }))}
+              curved
+              areaChart
+              height={200}
+              thickness={3}
+              spacing={32}
+              initialSpacing={20}
+              color="#34d399"
+              startFillColor="#34d399"
+              endFillColor="#34d399"
+              startOpacity={0.18}
+              endOpacity={0.02}
+              yAxisColor="rgba(226,232,240,0.25)"
+              xAxisColor="rgba(226,232,240,0.18)"
+              yAxisTextStyle={{ color: "rgba(226,232,240,0.7)", fontFamily: "Montserrat-SemiBold", fontSize: 10 }}
+              xAxisLabelTextStyle={{ color: "rgba(226,232,240,0.6)", fontFamily: "Montserrat-SemiBold", fontSize: 10 }}
+              hideDataPoints
+              yAxisLabelPrefix=""
+              yAxisLabelSuffix="%"
+              noOfSections={4}
+              adjustToWidth
             />
-            <VictoryAxis
-              dependentAxis
-              tickFormat={(val) => `${val}%`}
-              style={{
-                axis: { stroke: "transparent" },
-                tickLabels: { fill: "rgba(226,232,240,0.7)", fontFamily: "Montserrat-SemiBold", fontSize: 10 },
-                grid: { stroke: "rgba(16,185,129,0.15)" },
-              }}
-            />
-            <VictoryArea
-              data={chartData}
-              interpolation="natural"
-              style={{
-                data: { fill: "rgba(16,185,129,0.12)", strokeWidth: 0 },
-              }}
-            />
-            <VictoryLine
-              data={chartData}
-              interpolation="natural"
-              style={{
-                data: { stroke: "#34d399", strokeWidth: 3 },
-              }}
-            />
-          </VictoryChart>
+          </View>
         </LinearGradient>
 
         <View style={styles.highlightRow}>
@@ -318,33 +324,33 @@ const ProgressScreen: React.FC = () => {
             </View>
 
             <LinearGradient colors={["#0f172a", "#1e293b"]} style={styles.modalChart}>
-              <VictoryChart height={260} padding={{ left: 48, right: 28, top: 24, bottom: 48 }} domainPadding={12}>
-                <VictoryAxis
-                  style={{
-                    axis: { stroke: "rgba(226,232,240,0.1)" },
-                    tickLabels: { fill: "rgba(226,232,240,0.7)", fontFamily: "Montserrat-SemiBold", fontSize: 10 },
-                    grid: { stroke: "rgba(148,163,184,0.2)", strokeDasharray: "6" },
-                  }}
+              <View style={styles.modalChartInner}>
+                <LineChart
+                  data={(selectedWidget?.trend ?? resolvedChartData).map((point) => ({
+                    label: point.label,
+                    value: point.value,
+                  }))}
+                  curved
+                  areaChart
+                  height={220}
+                  thickness={3}
+                  spacing={36}
+                  initialSpacing={24}
+                  color="#60a5fa"
+                  startFillColor="#60a5fa"
+                  endFillColor="#60a5fa"
+                  startOpacity={0.22}
+                  endOpacity={0.04}
+                  yAxisColor="rgba(226,232,240,0.15)"
+                  xAxisColor="rgba(148,163,184,0.25)"
+                  yAxisTextStyle={{ color: "rgba(226,232,240,0.7)", fontFamily: "Montserrat-SemiBold", fontSize: 10 }}
+                  xAxisLabelTextStyle={{ color: "rgba(226,232,240,0.7)", fontFamily: "Montserrat-SemiBold", fontSize: 10 }}
+                  hideDataPoints
+                  yAxisLabelSuffix="%"
+                  noOfSections={5}
+                  adjustToWidth
                 />
-                <VictoryAxis
-                  dependentAxis
-                  style={{
-                    axis: { stroke: "transparent" },
-                    tickLabels: { fill: "rgba(226,232,240,0.7)", fontFamily: "Montserrat-SemiBold", fontSize: 10 },
-                    grid: { stroke: "rgba(59,130,246,0.2)" },
-                  }}
-                />
-                <VictoryArea
-                  data={selectedWidget?.trend ?? []}
-                  interpolation="catmullRom"
-                  style={{ data: { fill: "rgba(59,130,246,0.18)", strokeWidth: 0 } }}
-                />
-                <VictoryLine
-                  data={selectedWidget?.trend ?? []}
-                  interpolation="catmullRom"
-                  style={{ data: { stroke: "#60a5fa", strokeWidth: 3 } }}
-                />
-              </VictoryChart>
+              </View>
             </LinearGradient>
 
             <View style={styles.modalSection}>
@@ -434,6 +440,11 @@ const styles = StyleSheet.create({
     shadowRadius: 16,
     shadowOffset: { width: 0, height: 12 },
     elevation: 6,
+  },
+  chartWrapper: {
+    marginTop: 12,
+    borderRadius: 20,
+    overflow: "hidden",
   },
   chartHeader: {
     flexDirection: "row",
@@ -626,6 +637,11 @@ const styles = StyleSheet.create({
     borderRadius: 28,
     padding: 12,
     marginBottom: 24,
+  },
+  modalChartInner: {
+    borderRadius: 24,
+    overflow: "hidden",
+    paddingVertical: 4,
   },
   modalSection: {
     paddingHorizontal: 24,
