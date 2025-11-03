@@ -143,7 +143,7 @@ export default function AuthScreen() {
     setLoading(false);
 
     if (error) alert(error.message);
-    else router.replace('/Profile');
+    else router.replace('/(tabs)/record');
   }
 
   async function signUp() {
