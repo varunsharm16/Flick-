@@ -115,7 +115,7 @@ export default function AuthScreen() {
 
       await WebBrowser.warmUpAsync();
 
-      const result = await AuthSession.startAsync({ authUrl, returnUrl: redirectUrl });
+      const result = await WebBrowser.openAuthSessionAsync(authUrl, redirectUrl);
 
       if (result.type !== "success") {
         if (result.type === "dismiss" || result.type === "cancel") {
@@ -133,7 +133,7 @@ export default function AuthScreen() {
         }
       }
 
-      const authParams = parseAuthParams(result.url, result.params as Record<string, string> | undefined);
+      const authParams = parseAuthParams(result.url);
 
       if (authParams.error) {
         throw new Error(authParams.error_description ?? authParams.error ?? "Authentication failed");
