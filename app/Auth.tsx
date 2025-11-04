@@ -13,6 +13,7 @@ export default function AuthScreen() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const hasNavigatedRef = useRef(false);
+  const processedRedirectUrlsRef = useRef<Set<string>>(new Set());
 
   const navigateToProfile = useCallback(() => {
     if (hasNavigatedRef.current) {
@@ -36,13 +37,33 @@ export default function AuthScreen() {
     };
   }, [navigateToProfile]);
 
-  const showError = (message: string) => {
+  useEffect(() => {
+    const restoreSession = async () => {
+      try {
+        const { data, error } = await supabase.auth.getSession();
+
+        if (error) {
+          throw error;
+        }
+
+        if (data.session) {
+          navigateToProfile();
+        }
+      } catch (sessionError) {
+        console.warn("Failed to restore session", sessionError);
+      }
+    };
+
+    restoreSession();
+  }, [navigateToProfile]);
+
+  const showError = useCallback((message: string) => {
     if (Platform.OS === "web") {
       window.alert(message);
     } else {
       Alert.alert("Authentication Error", message);
     }
-  };
+  }, []);
 
   const parseAuthParams = (url: string | undefined, params?: Record<string, string>) => {
     const collectedParams: Record<string, string> = { ...(params ?? {}) };
@@ -78,7 +99,133 @@ export default function AuthScreen() {
     return collectedParams;
   };
 
+  const finalizeAuthentication = useCallback(
+    async (authParams: Record<string, string>) => {
+      if (authParams.error) {
+        throw new Error(authParams.error_description ?? authParams.error ?? "Authentication failed");
+      }
+
+      if (authParams.access_token && authParams.refresh_token) {
+        const { error: sessionError } = await supabase.auth.setSession({
+          access_token: authParams.access_token,
+          refresh_token: authParams.refresh_token,
+        });
+
+        if (sessionError) {
+          throw sessionError;
+        }
+      } else if (authParams.code) {
+        const { error: sessionError } = await supabase.auth.exchangeCodeForSession({
+          authCode: authParams.code,
+        });
+
+        if (sessionError) {
+          throw sessionError;
+        }
+      } else if (Object.keys(authParams).length > 0) {
+        throw new Error("No authentication response received. Please try again.");
+      }
+
+      if (Object.keys(authParams).length > 0) {
+        const { data: sessionResult, error: sessionLookupError } = await supabase.auth.getSession();
+
+        if (sessionLookupError) {
+          throw sessionLookupError;
+        }
+
+        if (!sessionResult.session) {
+          throw new Error("We couldn't finish signing you in. Please try again.");
+        }
+      }
+    },
+    []
+  );
+
+  const handleAuthRedirect = useCallback(
+    async (url: string | null | undefined) => {
+      if (!url) {
+        return;
+      }
+
+      const authParams = parseAuthParams(url);
+
+      if (Object.keys(authParams).length === 0) {
+        return;
+      }
+
+      if (processedRedirectUrlsRef.current.has(url)) {
+        try {
+          const { data: existingSession, error: existingSessionError } = await supabase.auth.getSession();
+
+          if (existingSessionError) {
+            throw existingSessionError;
+          }
+
+          if (existingSession.session) {
+            navigateToProfile();
+          }
+        } catch (sessionCheckError) {
+          console.warn("Failed to confirm existing session after redirect", sessionCheckError);
+        }
+
+        return;
+      }
+
+      processedRedirectUrlsRef.current.add(url);
+
+      try {
+        const { data: existingSession, error: existingSessionError } = await supabase.auth.getSession();
+
+        if (existingSessionError) {
+          throw existingSessionError;
+        }
+
+        if (existingSession.session) {
+          navigateToProfile();
+          return;
+        }
+      } catch (sessionCheckError) {
+        console.warn("Failed to check session before finalizing redirect", sessionCheckError);
+      }
+
+      try {
+        setLoading(true);
+        await finalizeAuthentication(authParams);
+        navigateToProfile();
+      } catch (error: any) {
+        processedRedirectUrlsRef.current.delete(url);
+        console.error("Failed to finalize authentication from redirect", error);
+        showError(error?.message ?? "Unable to complete authentication. Please try again.");
+      } finally {
+        setLoading(false);
+      }
+    },
+    [finalizeAuthentication, navigateToProfile, showError]
+  );
+
+  useEffect(() => {
+    const subscription = Linking.addEventListener("url", (event) => {
+      handleAuthRedirect(event?.url);
+    });
+
+    Linking.getInitialURL()
+      .then((initialUrl) => {
+        if (initialUrl) {
+          handleAuthRedirect(initialUrl);
+        }
+      })
+      .catch((linkError) => {
+        console.warn("Failed to retrieve initial URL", linkError);
+      });
+
+    return () => {
+      subscription.remove();
+    };
+  }, [handleAuthRedirect]);
+
   const handleGoogleSignIn = async () => {
+    let processedResultUrl: string | undefined;
+
     try {
       setLoading(true);
 
@@ -145,42 +292,37 @@ export default function AuthScreen() {
 
       const authParams = parseAuthParams(result.url);
 
-      if (authParams.error) {
-        throw new Error(authParams.error_description ?? authParams.error ?? "Authentication failed");
-      }
-
-      if (authParams.access_token && authParams.refresh_token) {
-        const { error: sessionError } = await supabase.auth.setSession({
-          access_token: authParams.access_token,
-          refresh_token: authParams.refresh_token,
-        });
-
-        if (sessionError) {
-          throw sessionError;
-        }
-      } else if (authParams.code) {
-        const { error: sessionError } = await supabase.auth.exchangeCodeForSession({
-          authCode: authParams.code,
-        });
-
-        if (sessionError) {
-          throw sessionError;
-        }
-      } else {
+      if (Object.keys(authParams).length === 0) {
         throw new Error("No authentication response received. Please try again.");
       }
 
-      const { data: sessionResult, error: sessionLookupError } = await supabase.auth.getSession();
-      if (sessionLookupError) {
-        throw sessionLookupError;
+      if (result.url) {
+        const wasProcessed = processedRedirectUrlsRef.current.has(result.url);
+
+        if (wasProcessed) {
+          const { data: existingSession, error: existingSessionError } = await supabase.auth.getSession();
+
+          if (existingSessionError) {
+            throw existingSessionError;
+          }
+
+          if (existingSession.session) {
+            navigateToProfile();
+            return;
+          }
+        } else {
+          processedRedirectUrlsRef.current.add(result.url);
+          processedResultUrl = result.url;
+        }
       }
 
-      if (!sessionResult.session) {
-        throw new Error("We couldn't finish signing you in. Please try again.");
-      }
+      await finalizeAuthentication(authParams);
 
       navigateToProfile();
     } catch (error: any) {
+      if (processedResultUrl) {
+        processedRedirectUrlsRef.current.delete(processedResultUrl);
+      }
       console.error("Google sign-in failed", error);
       showError(error?.message ?? "Unable to sign in with Google. Please try again.");
     } finally {
