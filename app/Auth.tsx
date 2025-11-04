@@ -14,11 +14,36 @@ export default function AuthScreen() {
   const [loading, setLoading] = useState(false);
   const hasNavigatedRef = useRef(false);
   const processedRedirectUrlsRef = useRef<Set<string>>(new Set());
+  const isAuthExchangeInProgress = useRef(false);
+
+  const waitForActiveExchange = useCallback(async () => {
+    const maxWaitTimeMs = 5000;
+    const intervalMs = 150;
+    let elapsed = 0;
+
+    while (isAuthExchangeInProgress.current && elapsed < maxWaitTimeMs) {
+      await new Promise((resolve) => setTimeout(resolve, intervalMs));
+      elapsed += intervalMs;
+    }
+  }, []);
+
+  const beginSessionExchange = useCallback(() => {
+    if (!isAuthExchangeInProgress.current) {
+      isAuthExchangeInProgress.current = true;
+      console.log("🔄 Starting session exchange...");
+    }
+  }, []);
 
   const navigateToProfile = useCallback(() => {
     if (hasNavigatedRef.current) {
       return;
     }
+
+    if (isAuthExchangeInProgress.current) {
+      isAuthExchangeInProgress.current = false;
+    }
+
+    console.log("✅ Exchange complete, session established.");
 
     hasNavigatedRef.current = true;
     router.replace("/(tabs)/profile");
@@ -100,45 +125,61 @@ export default function AuthScreen() {
   };
 
   const finalizeAuthentication = useCallback(
-    async (authParams: Record<string, string>) => {
+    async (
+      authParams: Record<string, string>,
+      options?: { allowActiveExchange?: boolean }
+    ) => {
       if (authParams.error) {
         throw new Error(authParams.error_description ?? authParams.error ?? "Authentication failed");
       }
 
-      if (authParams.access_token && authParams.refresh_token) {
-        const { error: sessionError } = await supabase.auth.setSession({
-          access_token: authParams.access_token,
-          refresh_token: authParams.refresh_token,
-        });
-
-        if (sessionError) {
-          throw sessionError;
-        }
-      } else if (authParams.code) {
-        const { error: sessionError } = await supabase.auth.exchangeCodeForSession({
-          authCode: authParams.code,
-        });
-
-        if (sessionError) {
-          throw sessionError;
-        }
-      } else if (Object.keys(authParams).length > 0) {
-        throw new Error("No authentication response received. Please try again.");
+      if (isAuthExchangeInProgress.current && !options?.allowActiveExchange) {
+        await waitForActiveExchange();
+        return;
       }
 
-      if (Object.keys(authParams).length > 0) {
-        const { data: sessionResult, error: sessionLookupError } = await supabase.auth.getSession();
+      if (!isAuthExchangeInProgress.current) {
+        beginSessionExchange();
+      }
 
-        if (sessionLookupError) {
-          throw sessionLookupError;
+      try {
+        if (authParams.access_token && authParams.refresh_token) {
+          const { error: sessionError } = await supabase.auth.setSession({
+            access_token: authParams.access_token,
+            refresh_token: authParams.refresh_token,
+          });
+
+          if (sessionError) {
+            throw sessionError;
+          }
+        } else if (authParams.code) {
+          const { error: sessionError } = await supabase.auth.exchangeCodeForSession({
+            authCode: authParams.code,
+          });
+
+          if (sessionError) {
+            throw sessionError;
+          }
+        } else if (Object.keys(authParams).length > 0) {
+          throw new Error("No authentication response received. Please try again.");
         }
 
-        if (!sessionResult.session) {
-          throw new Error("We couldn't finish signing you in. Please try again.");
+        if (Object.keys(authParams).length > 0) {
+          const { data: sessionResult, error: sessionLookupError } = await supabase.auth.getSession();
+
+          if (sessionLookupError) {
+            throw sessionLookupError;
+          }
+
+          if (!sessionResult.session) {
+            throw new Error("We couldn't finish signing you in. Please try again.");
+          }
         }
+      } finally {
+        isAuthExchangeInProgress.current = false;
       }
     },
-    []
+    [beginSessionExchange, waitForActiveExchange]
   );
 
   const handleAuthRedirect = useCallback(
@@ -188,19 +229,42 @@ export default function AuthScreen() {
         console.warn("Failed to check session before finalizing redirect", sessionCheckError);
       }
 
+      if (isAuthExchangeInProgress.current) {
+        await waitForActiveExchange();
+        try {
+          const { data: existingSession } = await supabase.auth.getSession();
+          if (existingSession?.session) {
+            navigateToProfile();
+          }
+        } catch (sessionCheckError) {
+          console.warn("Failed to confirm session after waiting for exchange", sessionCheckError);
+        }
+        return;
+      }
+
+      beginSessionExchange();
+
+      setLoading(true);
+
       try {
-        setLoading(true);
-        await finalizeAuthentication(authParams);
+        await finalizeAuthentication(authParams, { allowActiveExchange: true });
         navigateToProfile();
       } catch (error: any) {
         processedRedirectUrlsRef.current.delete(url);
         console.error("Failed to finalize authentication from redirect", error);
         showError(error?.message ?? "Unable to complete authentication. Please try again.");
       } finally {
+        isAuthExchangeInProgress.current = false;
         setLoading(false);
       }
     },
-    [finalizeAuthentication, navigateToProfile, showError]
+    [
+      beginSessionExchange,
+      finalizeAuthentication,
+      navigateToProfile,
+      showError,
+      waitForActiveExchange,
+    ]
   );
 
   useEffect(() => {
@@ -228,6 +292,19 @@ export default function AuthScreen() {
 
     try {
       setLoading(true);
+
+      if (isAuthExchangeInProgress.current) {
+        await waitForActiveExchange();
+        try {
+          const { data: existingSession } = await supabase.auth.getSession();
+          if (existingSession?.session) {
+            navigateToProfile();
+          }
+        } catch (sessionCheckError) {
+          console.warn("Failed to confirm session after waiting for exchange", sessionCheckError);
+        }
+        return;
+      }
 
       const isExpoGo = Constants.appOwnership === "expo";
       const redirectPath = Platform.OS === "web" ? "Auth" : "auth-callback";
@@ -316,7 +393,9 @@ export default function AuthScreen() {
         }
       }
 
-      await finalizeAuthentication(authParams);
+      beginSessionExchange();
+
+      await finalizeAuthentication(authParams, { allowActiveExchange: true });
 
       navigateToProfile();
     } catch (error: any) {
