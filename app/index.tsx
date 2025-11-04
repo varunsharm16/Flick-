@@ -16,7 +16,7 @@ export default function Index() {
       try {
         const { data } = await supabase.auth.getSession();
         if (data.session) {
-          router.replace("/(tabs)/progress");
+          router.replace("/(tabs)/profile");
           return;
         }
 

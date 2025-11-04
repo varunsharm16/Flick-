@@ -17,7 +17,7 @@ export default function AuthScreen() {
     const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session) {
         setLoading(false);
-        router.replace("/(tabs)/progress");
+        router.replace("/(tabs)/profile");
       }
     });
 
@@ -160,7 +160,16 @@ export default function AuthScreen() {
         throw new Error("No authentication response received. Please try again.");
       }
 
-      router.replace("/(tabs)/progress");
+      const { data: sessionResult, error: sessionLookupError } = await supabase.auth.getSession();
+      if (sessionLookupError) {
+        throw sessionLookupError;
+      }
+
+      if (!sessionResult.session) {
+        throw new Error("We couldn't finish signing you in. Please try again.");
+      }
+
+      router.replace("/(tabs)/profile");
     } catch (error: any) {
       console.error("Google sign-in failed", error);
       showError(error?.message ?? "Unable to sign in with Google. Please try again.");
