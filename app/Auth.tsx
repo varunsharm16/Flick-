@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet, Platform, Alert } from "react
 import { useRouter } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
 import * as AuthSession from "expo-auth-session";
+import * as Linking from "expo-linking";
 import Constants from "expo-constants";
 import { supabase } from "./lib/supabase";
 
@@ -33,15 +34,57 @@ export default function AuthScreen() {
     }
   };
 
+  const parseAuthParams = (url: string | undefined, params?: Record<string, string>) => {
+    const collectedParams: Record<string, string> = { ...(params ?? {}) };
+
+    if (!url) {
+      return collectedParams;
+    }
+
+    try {
+      const parsedUrl = Linking.parse(url);
+      if (parsedUrl?.queryParams) {
+        Object.entries(parsedUrl.queryParams).forEach(([key, value]) => {
+          if (typeof value === "string") {
+            collectedParams[key] = value;
+          }
+        });
+      }
+
+      const hashIndex = url.indexOf("#");
+      if (hashIndex !== -1) {
+        const hash = url.substring(hashIndex + 1);
+        if (typeof URLSearchParams !== "undefined") {
+          const searchParams = new URLSearchParams(hash);
+          searchParams.forEach((value, key) => {
+            collectedParams[key] = value;
+          });
+        }
+      }
+    } catch (parseError) {
+      console.warn("Failed to parse auth redirect URL", parseError);
+    }
+
+    return collectedParams;
+  };
+
   const handleGoogleSignIn = async () => {
     try {
       setLoading(true);
+
+      const isExpoGo = Constants.appOwnership === "expo";
+      const redirectPath = Platform.OS === "web" ? "Auth" : "auth-callback";
+      const redirectUrl = AuthSession.makeRedirectUri({
+        scheme: Platform.OS === "web" ? undefined : "flick",
+        path: redirectPath,
+        useProxy: Platform.OS !== "web" && isExpoGo,
+      });
 
       if (Platform.OS === "web") {
         const { error } = await supabase.auth.signInWithOAuth({
           provider: "google",
           options: {
-            redirectTo: `${window.location.origin}/Auth`,
+            redirectTo: redirectUrl,
           },
         });
 
@@ -51,12 +94,6 @@ export default function AuthScreen() {
 
         return;
       }
-
-      const isExpoGo = Constants.appOwnership === "expo";
-      const redirectUrl = AuthSession.makeRedirectUri({
-        useProxy: Platform.OS === "ios" && isExpoGo,
-        native: "flick://auth-callback",
-      });
 
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: "google",
@@ -76,20 +113,51 @@ export default function AuthScreen() {
         throw new Error("No authentication URL returned. Please try again.");
       }
 
-      const result = await WebBrowser.openAuthSessionAsync(authUrl, redirectUrl);
+      await WebBrowser.warmUpAsync();
+
+      const result = await AuthSession.startAsync({ authUrl, returnUrl: redirectUrl });
 
       if (result.type !== "success") {
-        throw new Error("Authentication was canceled. Please try again.");
+        if (result.type === "dismiss" || result.type === "cancel") {
+          throw new Error("Authentication was canceled. Please try again.");
+        }
+
+        throw new Error("Unable to complete authentication. Please try again.");
       }
 
-      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-
-      if (sessionError) {
-        throw sessionError;
+      if (Platform.OS !== "web") {
+        try {
+          await WebBrowser.dismissBrowser();
+        } catch (dismissError) {
+          console.warn("Failed to dismiss web browser", dismissError);
+        }
       }
 
-      if (!sessionData.session) {
-        throw new Error("No session found after authentication. Please try again.");
+      const authParams = parseAuthParams(result.url, result.params as Record<string, string> | undefined);
+
+      if (authParams.error) {
+        throw new Error(authParams.error_description ?? authParams.error ?? "Authentication failed");
+      }
+
+      if (authParams.access_token && authParams.refresh_token) {
+        const { error: sessionError } = await supabase.auth.setSession({
+          access_token: authParams.access_token,
+          refresh_token: authParams.refresh_token,
+        });
+
+        if (sessionError) {
+          throw sessionError;
+        }
+      } else if (authParams.code) {
+        const { error: sessionError } = await supabase.auth.exchangeCodeForSession({
+          authCode: authParams.code,
+        });
+
+        if (sessionError) {
+          throw sessionError;
+        }
+      } else {
+        throw new Error("No authentication response received. Please try again.");
       }
 
       router.replace("/(tabs)/progress");
@@ -98,6 +166,13 @@ export default function AuthScreen() {
       showError(error?.message ?? "Unable to sign in with Google. Please try again.");
     } finally {
       setLoading(false);
+      if (Platform.OS !== "web") {
+        try {
+          await WebBrowser.coolDownAsync();
+        } catch (coolDownError) {
+          console.warn("Failed to cool down web browser", coolDownError);
+        }
+      }
     }
   };
 
