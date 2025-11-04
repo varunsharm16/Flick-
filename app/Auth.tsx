@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { View, Text, TouchableOpacity, StyleSheet, Platform, Alert } from "react-native";
 import { useRouter } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
@@ -12,19 +12,29 @@ WebBrowser.maybeCompleteAuthSession();
 export default function AuthScreen() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const hasNavigatedRef = useRef(false);
+
+  const navigateToProfile = useCallback(() => {
+    if (hasNavigatedRef.current) {
+      return;
+    }
+
+    hasNavigatedRef.current = true;
+    router.replace("/(tabs)/profile");
+  }, [router]);
 
   useEffect(() => {
     const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session) {
         setLoading(false);
-        router.replace("/(tabs)/profile");
+        navigateToProfile();
       }
     });
 
     return () => {
       authListener?.subscription?.unsubscribe();
     };
-  }, [router]);
+  }, [navigateToProfile]);
 
   const showError = (message: string) => {
     if (Platform.OS === "web") {
@@ -169,7 +179,7 @@ export default function AuthScreen() {
         throw new Error("We couldn't finish signing you in. Please try again.");
       }
 
-      router.replace("/(tabs)/profile");
+      navigateToProfile();
     } catch (error: any) {
       console.error("Google sign-in failed", error);
       showError(error?.message ?? "Unable to sign in with Google. Please try again.");
