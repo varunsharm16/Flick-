@@ -1,7 +1,12 @@
 import React, { useEffect, useState } from "react";
 import { View, Text, TouchableOpacity, StyleSheet, Platform, Alert } from "react-native";
 import { useRouter } from "expo-router";
+import * as WebBrowser from "expo-web-browser";
+import * as AuthSession from "expo-auth-session";
+import Constants from "expo-constants";
 import { supabase } from "./lib/supabase";
+
+WebBrowser.maybeCompleteAuthSession();
 
 export default function AuthScreen() {
   const router = useRouter();
@@ -31,13 +36,33 @@ export default function AuthScreen() {
   const handleGoogleSignIn = async () => {
     try {
       setLoading(true);
-      const { error } = await supabase.auth.signInWithOAuth({
+
+      if (Platform.OS === "web") {
+        const { error } = await supabase.auth.signInWithOAuth({
+          provider: "google",
+          options: {
+            redirectTo: `${window.location.origin}/Auth`,
+          },
+        });
+
+        if (error) {
+          throw error;
+        }
+
+        return;
+      }
+
+      const isExpoGo = Constants.appOwnership === "expo";
+      const redirectUrl = AuthSession.makeRedirectUri({
+        useProxy: Platform.OS === "ios" && isExpoGo,
+        native: "flick://auth-callback",
+      });
+
+      const { data, error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
-          redirectTo:
-            Platform.OS === "web"
-              ? `${window.location.origin}/Auth`
-              : undefined,
+          redirectTo: redirectUrl,
+          skipBrowserRedirect: true,
         },
       });
 
@@ -45,18 +70,33 @@ export default function AuthScreen() {
         throw error;
       }
 
-      if (Platform.OS !== "web") {
-        const { data, error: sessionError } = await supabase.auth.getSession();
-        if (sessionError) {
-          throw sessionError;
-        }
-        if (data.session) {
-          router.replace("/(tabs)/progress");
-        }
+      const authUrl = data?.url;
+
+      if (!authUrl) {
+        throw new Error("No authentication URL returned. Please try again.");
       }
+
+      const result = await WebBrowser.openAuthSessionAsync(authUrl, redirectUrl);
+
+      if (result.type !== "success") {
+        throw new Error("Authentication was canceled. Please try again.");
+      }
+
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+
+      if (sessionError) {
+        throw sessionError;
+      }
+
+      if (!sessionData.session) {
+        throw new Error("No session found after authentication. Please try again.");
+      }
+
+      router.replace("/(tabs)/progress");
     } catch (error: any) {
       console.error("Google sign-in failed", error);
       showError(error?.message ?? "Unable to sign in with Google. Please try again.");
+    } finally {
       setLoading(false);
     }
   };
