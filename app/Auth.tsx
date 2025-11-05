@@ -142,8 +142,6 @@ export default function AuthScreen() {
       }
 
       if (authParams.access_token && authParams.refresh_token) {
-        const wasExchangeActive = isAuthExchangeInProgress.current;
-        let callSucceeded = false;
         try {
           const { error: sessionError } = await supabase.auth.setSession({
             access_token: authParams.access_token,
@@ -153,19 +151,10 @@ export default function AuthScreen() {
           if (sessionError) {
             throw sessionError;
           }
-
-          callSucceeded = true;
         } finally {
-          const shouldRestore =
-            callSucceeded && wasExchangeActive && isAuthExchangeInProgress.current;
           isAuthExchangeInProgress.current = false;
-          if (shouldRestore) {
-            isAuthExchangeInProgress.current = true;
-          }
         }
       } else if (authParams.code) {
-        const wasExchangeActive = isAuthExchangeInProgress.current;
-        let callSucceeded = false;
         try {
           const { error: sessionError } = await supabase.auth.exchangeCodeForSession({
             authCode: authParams.code,
@@ -174,15 +163,8 @@ export default function AuthScreen() {
           if (sessionError) {
             throw sessionError;
           }
-
-          callSucceeded = true;
         } finally {
-          const shouldRestore =
-            callSucceeded && wasExchangeActive && isAuthExchangeInProgress.current;
           isAuthExchangeInProgress.current = false;
-          if (shouldRestore) {
-            isAuthExchangeInProgress.current = true;
-          }
         }
       } else if (Object.keys(authParams).length > 0) {
         isAuthExchangeInProgress.current = false;
@@ -190,8 +172,6 @@ export default function AuthScreen() {
       }
 
       if (Object.keys(authParams).length > 0) {
-        const wasExchangeActive = isAuthExchangeInProgress.current;
-        let callSucceeded = false;
         try {
           const { data: sessionResult, error: sessionLookupError } = await supabase.auth.getSession();
 
@@ -202,15 +182,8 @@ export default function AuthScreen() {
           if (!sessionResult.session) {
             throw new Error("We couldn't finish signing you in. Please try again.");
           }
-
-          callSucceeded = true;
         } finally {
-          const shouldRestore =
-            callSucceeded && wasExchangeActive && isAuthExchangeInProgress.current;
           isAuthExchangeInProgress.current = false;
-          if (shouldRestore) {
-            isAuthExchangeInProgress.current = true;
-          }
         }
       }
     },
@@ -231,8 +204,6 @@ export default function AuthScreen() {
 
       if (processedRedirectUrlsRef.current.has(url)) {
         try {
-          const wasExchangeActive = isAuthExchangeInProgress.current;
-          let callSucceeded = false;
           try {
             const { data: existingSession, error: existingSessionError } =
               await supabase.auth.getSession();
@@ -241,18 +212,11 @@ export default function AuthScreen() {
               throw existingSessionError;
             }
 
-            callSucceeded = true;
-
             if (existingSession.session) {
               navigateToProfile();
             }
           } finally {
-            const shouldRestore =
-              callSucceeded && wasExchangeActive && isAuthExchangeInProgress.current;
             isAuthExchangeInProgress.current = false;
-            if (shouldRestore) {
-              isAuthExchangeInProgress.current = true;
-            }
           }
         } catch (sessionCheckError) {
           console.warn("Failed to confirm existing session after redirect", sessionCheckError);
@@ -264,8 +228,6 @@ export default function AuthScreen() {
       processedRedirectUrlsRef.current.add(url);
 
       try {
-        const wasExchangeActive = isAuthExchangeInProgress.current;
-        let callSucceeded = false;
         try {
           const { data: existingSession, error: existingSessionError } =
             await supabase.auth.getSession();
@@ -274,19 +236,12 @@ export default function AuthScreen() {
             throw existingSessionError;
           }
 
-          callSucceeded = true;
-
           if (existingSession.session) {
             navigateToProfile();
             return;
           }
         } finally {
-          const shouldRestore =
-            callSucceeded && wasExchangeActive && isAuthExchangeInProgress.current;
           isAuthExchangeInProgress.current = false;
-          if (shouldRestore) {
-            isAuthExchangeInProgress.current = true;
-          }
         }
       } catch (sessionCheckError) {
         console.warn("Failed to check session before finalizing redirect", sessionCheckError);
@@ -295,21 +250,13 @@ export default function AuthScreen() {
       if (isAuthExchangeInProgress.current) {
         await waitForActiveExchange();
         try {
-          const wasExchangeActive = isAuthExchangeInProgress.current;
-          let callSucceeded = false;
           try {
             const { data: existingSession } = await supabase.auth.getSession();
-            callSucceeded = true;
             if (existingSession?.session) {
               navigateToProfile();
             }
           } finally {
-            const shouldRestore =
-              callSucceeded && wasExchangeActive && isAuthExchangeInProgress.current;
             isAuthExchangeInProgress.current = false;
-            if (shouldRestore) {
-              isAuthExchangeInProgress.current = true;
-            }
           }
         } catch (sessionCheckError) {
           console.warn("Failed to confirm session after waiting for exchange", sessionCheckError);
