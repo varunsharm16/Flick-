@@ -43,6 +43,7 @@ const CoachScreen: React.FC = () => {
   const [messages, setMessages] = useState<Message[]>(initialMessages);
   const [input, setInput] = useState("");
   const [isThinking, setIsThinking] = useState(false);
+  const tabBarClearance = Math.max(insets.bottom + 48, 84);
 
   useEffect(() => {
     listRef.current?.scrollToEnd({ animated: true });
@@ -96,7 +97,7 @@ const CoachScreen: React.FC = () => {
   };
 
   return (
-    <SafeAreaView style={[styles.safeArea, { paddingTop: insets.top + 16 }]} edges={['top']}>
+    <SafeAreaView style={[styles.safeArea, { paddingTop: insets.top }]} edges={['top']}>
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Coach Flick</Text>
         <Text style={styles.headerSubtitle}>Your AI shooting assistant</Text>
@@ -128,7 +129,10 @@ const CoachScreen: React.FC = () => {
         behavior={Platform.select({ ios: "padding", android: undefined })}
         keyboardVerticalOffset={insets.bottom + 120}
       >
-        <LinearGradient colors={["rgba(255,255,255,0.08)", "rgba(255,255,255,0.04)"]} style={styles.inputBar}>
+        <LinearGradient
+          colors={["rgba(255,255,255,0.08)", "rgba(255,255,255,0.04)"]}
+          style={[styles.inputBar, { marginBottom: tabBarClearance }]}
+        >
           <TextInput
             value={input}
             onChangeText={setInput}

@@ -79,7 +79,6 @@ type Widget = {
   summary: string;
   description: string;
   trend: TrendPoint[];
-  badge?: "PRO" | "CORE";
 };
 
 const formatDelta = (value: number, unit = "%") => {
@@ -142,7 +141,6 @@ const ProgressScreen: React.FC = () => {
         description:
           "Accuracy captures makes vs. attempts. The AI models each release and identifies mechanical drift before it impacts results.",
         trend: resolvedChartData,
-        badge: "CORE",
       },
       {
         id: "formConsistency",
@@ -154,7 +152,6 @@ const ProgressScreen: React.FC = () => {
         description:
           "Consistency blends elbow alignment, wrist angle, and release height into one score. The closer to 100%, the more repeatable your shot.",
         trend: resolvedChartData,
-        badge: "CORE",
       },
       {
         id: "shotsTaken",
@@ -177,7 +174,6 @@ const ProgressScreen: React.FC = () => {
         description:
           "Release time measures catch-to-release speed. Flick flags hesitations, so you can train a lightning-fast motion.",
         trend: resolvedChartData,
-        badge: "PRO",
       },
       {
         id: "followThrough",
@@ -189,7 +185,6 @@ const ProgressScreen: React.FC = () => {
         description:
           "Follow through looks at wrist extension, finger spread, and hold time. It's the finishing touch for a buttery jumper.",
         trend: resolvedChartData,
-        badge: "PRO",
       },
       {
         id: "arcAngle",
@@ -201,10 +196,13 @@ const ProgressScreen: React.FC = () => {
         description:
           "Arc angle is tracked frame-by-frame to confirm the ball stays in the ideal launch window. We'll nudge you when it flattens.",
         trend: resolvedChartData,
-        badge: "PRO",
       },
     ];
   }, [progress, resolvedChartData]);
+
+  const weekUsage = progress?.weekUsage ?? [];
+  const weekDays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const todayIndex = new Date().getDay();
 
   const streakValue = useMemo(() => {
     const base = progress ? Math.min(30, 5 + Math.round(progress.deltaShots / 2)) : 0;
@@ -217,7 +215,7 @@ const ProgressScreen: React.FC = () => {
   };
 
   return (
-    <SafeAreaView style={[styles.safeArea, { paddingTop: insets.top + 16 }]} edges={['top']}>
+    <SafeAreaView style={[styles.safeArea, { paddingTop: insets.top }]} edges={['top']}>
       <ScrollView
         contentContainerStyle={{ paddingBottom: insets.bottom + 140, paddingHorizontal: horizontalPadding }}
         contentInsetAdjustmentBehavior="automatic"
@@ -285,12 +283,38 @@ const ProgressScreen: React.FC = () => {
 
         <View style={styles.streakCard}>
           <LinearGradient colors={["#2b1400", "#120700"]} style={styles.streakInner}>
-            <View>
-              <Text style={styles.streakLabel}>Day streak</Text>
-              <Text style={styles.streakValue}>{streakValue} days</Text>
+            <View style={styles.streakHeader}>
+              <View>
+                <Text style={styles.streakLabel}>Day streak</Text>
+                <Text style={styles.streakValue}>{streakValue} days</Text>
+              </View>
+              <View style={styles.streakIcon}>
+                <Ionicons name="flame" size={28} color="#ff9100" />
+              </View>
             </View>
-            <View style={styles.streakIcon}>
-              <Ionicons name="flame" size={28} color="#ff9100" />
+            <View style={styles.weekRow}>
+              {weekDays.map((label, index) => {
+                const used = Boolean(weekUsage[index]);
+                const isToday = index === todayIndex;
+                return (
+                  <View key={label} style={styles.weekCell}>
+                    <View
+                      style={[
+                        styles.weekIndicator,
+                        used ? styles.weekIndicatorActive : styles.weekIndicatorIdle,
+                        isToday ? styles.weekIndicatorToday : null,
+                      ]}
+                    >
+                      <Ionicons
+                        name={used ? "checkmark" : "remove-outline"}
+                        size={12}
+                        color={used ? "#0b0b0b" : "rgba(255,255,255,0.7)"}
+                      />
+                    </View>
+                    <Text style={[styles.weekLabel, isToday && styles.weekLabelToday]}>{label}</Text>
+                  </View>
+                );
+              })}
             </View>
           </LinearGradient>
         </View>
@@ -305,11 +329,6 @@ const ProgressScreen: React.FC = () => {
             >
               <View style={styles.widgetHeader}>
                 <Text style={styles.widgetTitle}>{widget.title}</Text>
-                {widget.badge && (
-                  <View style={styles.widgetBadge}>
-                    <Text style={styles.widgetBadgeText}>{widget.badge}</Text>
-                  </View>
-                )}
               </View>
               <Text style={styles.widgetValue}>{widget.value}</Text>
               <Text
@@ -324,7 +343,7 @@ const ProgressScreen: React.FC = () => {
       </ScrollView>
 
       <Modal visible={!!selectedWidget} animationType="slide" onRequestClose={() => setSelectedWidget(null)}>
-        <SafeAreaView style={[styles.modalSafe, { paddingTop: insets.top + 16 }]} edges={['top']}>
+        <SafeAreaView style={[styles.modalSafe, { paddingTop: insets.top }]} edges={['top']}>
           <ScrollView
             contentContainerStyle={{ paddingBottom: insets.bottom + 40 }}
             showsVerticalScrollIndicator={false}
@@ -501,9 +520,16 @@ const styles = StyleSheet.create({
   streakInner: {
     borderRadius: 22,
     padding: 20,
+    flexDirection: "column",
+    alignItems: "flex-start",
+    justifyContent: "center",
+    gap: 18,
+  },
+  streakHeader: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+    width: "100%",
   },
   streakLabel: {
     fontSize: 14,
@@ -522,6 +548,50 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255,145,0,0.18)",
     alignItems: "center",
     justifyContent: "center",
+  },
+  weekRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    width: "100%",
+    marginTop: 16,
+  },
+  weekCell: {
+    alignItems: "center",
+    gap: 6,
+    flex: 1,
+  },
+  weekIndicator: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+  },
+  weekIndicatorIdle: {
+    backgroundColor: "rgba(255,255,255,0.08)",
+    borderColor: "rgba(255,255,255,0.18)",
+  },
+  weekIndicatorActive: {
+    backgroundColor: "#ffb74d",
+    borderColor: "#ffb74d",
+  },
+  weekIndicatorToday: {
+    shadowColor: "#ff9100",
+    shadowOpacity: 0.4,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 6,
+    borderColor: "#ff9100",
+  },
+  weekLabel: {
+    fontSize: 11,
+    color: "rgba(255,255,255,0.65)",
+    fontFamily: "Montserrat-SemiBold",
+  },
+  weekLabelToday: {
+    color: "#ffb74d",
   },
   widgetGrid: {
     flexDirection: "row",
@@ -552,17 +622,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#ffe8b0",
     fontFamily: "Montserrat-SemiBold",
-  },
-  widgetBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 999,
-    backgroundColor: "#ff9100",
-  },
-  widgetBadgeText: {
-    fontSize: 10,
-    color: "#0b0b0b",
-    fontFamily: "Montserrat-Bold",
   },
   widgetValue: {
     marginTop: 18,
