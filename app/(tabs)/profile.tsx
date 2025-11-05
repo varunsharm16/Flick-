@@ -48,6 +48,7 @@ const ProfileScreen: React.FC = () => {
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [notificationFrequency, setNotificationFrequency] = useState(3);
   const frequencyOptions = [1, 2, 3, 4, 5, 6];
+  const [billingExpanded, setBillingExpanded] = useState(false);
 
   useEffect(() => {
     if (profile?.name) {
@@ -120,7 +121,7 @@ const ProfileScreen: React.FC = () => {
   });
 
   return (
-    <SafeAreaView style={[styles.safeArea, { paddingTop: insets.top + 12 }]} edges={['top']}>
+    <SafeAreaView style={[styles.safeArea, { paddingTop: insets.top }]} edges={['top']}>
       <ScrollView
         contentContainerStyle={{ paddingBottom: insets.bottom + 160 }}
         contentInsetAdjustmentBehavior="automatic"
@@ -188,69 +189,74 @@ const ProfileScreen: React.FC = () => {
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Account</Text>
-          <TouchableOpacity style={styles.accountRow}>
+          <TouchableOpacity
+            style={[styles.accountRow, billingExpanded && styles.accountRowExpanded]}
+            onPress={() => setBillingExpanded((prev) => !prev)}
+            activeOpacity={0.85}
+          >
             <Text style={styles.accountLabel}>Manage billing</Text>
-            <Ionicons name="chevron-forward" size={18} color="#ff9100" />
+            <Ionicons name={billingExpanded ? "chevron-down" : "chevron-forward"} size={18} color="#ff9100" />
           </TouchableOpacity>
-        </View>
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Membership</Text>
-          {membershipPlans.map((plan) => {
-            const active = (plan.id === "pro" && profile?.isPro) || (plan.id === "free" && !profile?.isPro);
-            return (
-              <View
-                key={plan.id}
-                style={[styles.planCard, active ? styles.planCardActive : styles.planCardInactive]}
-              >
-                <View style={styles.planHeader}>
-                  <Text
-                    style={[styles.planName, active ? styles.planNameActive : styles.planNameInactive]}
+          {billingExpanded && (
+            <View style={styles.billingContent}>
+              {membershipPlans.map((plan) => {
+                const active = (plan.id === "pro" && profile?.isPro) || (plan.id === "free" && !profile?.isPro);
+                return (
+                  <View
+                    key={plan.id}
+                    style={[styles.planCard, active ? styles.planCardActive : styles.planCardInactive]}
                   >
-                    {plan.name}
-                  </Text>
-                  <Text
-                    style={[styles.planPrice, active ? styles.planPriceActive : styles.planPriceInactive]}
-                  >
-                    {plan.price}
-                  </Text>
-                </View>
-                <Text
-                  style={[styles.planDescription, active ? styles.planDescriptionActive : styles.planDescriptionInactive]}
-                >
-                  {plan.description}
-                </Text>
-                {plan.features.map((feature) => (
-                  <View key={feature} style={styles.featureRow}>
-                    <Ionicons
-                      name="ellipse"
-                      size={10}
-                      color={active ? "#0b0b0b" : "#ff9100"}
-                      style={styles.featureBullet}
-                    />
+                    <View style={styles.planHeader}>
+                      <Text
+                        style={[styles.planName, active ? styles.planNameActive : styles.planNameInactive]}
+                      >
+                        {plan.name}
+                      </Text>
+                      <Text
+                        style={[styles.planPrice, active ? styles.planPriceActive : styles.planPriceInactive]}
+                      >
+                        {plan.price}
+                      </Text>
+                    </View>
                     <Text
-                      style={[styles.featureLabel, active ? styles.featureLabelActive : styles.featureLabelInactive]}
+                      style={[styles.planDescription, active ? styles.planDescriptionActive : styles.planDescriptionInactive]}
                     >
-                      {feature}
+                      {plan.description}
                     </Text>
+                    {plan.features.map((feature) => (
+                      <View key={feature} style={styles.featureRow}>
+                        <Ionicons
+                          name="ellipse"
+                          size={10}
+                          color={active ? "#0b0b0b" : "#ff9100"}
+                          style={styles.featureBullet}
+                        />
+                        <Text
+                          style={[styles.featureLabel, active ? styles.featureLabelActive : styles.featureLabelInactive]}
+                        >
+                          {feature}
+                        </Text>
+                      </View>
+                    ))}
+                    {active ? (
+                      <View style={styles.activeBadge}>
+                        <Ionicons name="sparkles" size={16} color="#0b0b0b" />
+                        <Text style={styles.activeBadgeLabel}>Current plan</Text>
+                      </View>
+                    ) : (
+                      <TouchableOpacity
+                        style={[styles.planButton, styles.planButtonInactive]}
+                        activeOpacity={0.85}
+                      >
+                        <Text style={[styles.planButtonLabel, styles.planButtonLabelInactive]}>See details</Text>
+                      </TouchableOpacity>
+                    )}
                   </View>
-                ))}
-                {active ? (
-                  <View style={styles.activeBadge}>
-                    <Ionicons name="sparkles" size={16} color="#0b0b0b" />
-                    <Text style={styles.activeBadgeLabel}>Current plan</Text>
-                  </View>
-                ) : (
-                  <TouchableOpacity
-                    style={[styles.planButton, styles.planButtonInactive]}
-                    activeOpacity={0.85}
-                  >
-                    <Text style={[styles.planButtonLabel, styles.planButtonLabelInactive]}>See details</Text>
-                  </TouchableOpacity>
-                )}
-              </View>
-            );
-          })}
+                );
+              })}
+            </View>
+          )}
         </View>
 
         <View style={styles.section}>
@@ -476,7 +482,7 @@ const styles = StyleSheet.create({
   planCard: {
     borderRadius: 24,
     padding: 20,
-    marginBottom: 18,
+    marginBottom: 0,
     borderWidth: 1,
   },
   planCardActive: {
@@ -597,10 +603,19 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.12)",
   },
+  accountRowExpanded: {
+    borderBottomLeftRadius: 12,
+    borderBottomRightRadius: 12,
+  },
   accountLabel: {
     fontSize: 15,
     color: "#ffe8b0",
     fontFamily: "Montserrat-SemiBold",
+  },
+  billingContent: {
+    marginTop: 16,
+    gap: 16,
+    paddingTop: 10,
   },
   preferenceCard: {
     backgroundColor: "rgba(255,255,255,0.06)",

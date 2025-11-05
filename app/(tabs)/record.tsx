@@ -24,7 +24,7 @@ const MAX_DURATION_MS = 30_000;
 type IntervalHandle = ReturnType<typeof setInterval> | null;
 type TimeoutHandle = ReturnType<typeof setTimeout> | null;
 
-type FlashMode = "off" | "on";
+type FlashMode = "off" | "torch";
 
 type CameraPosition = "front" | "back";
 
@@ -198,7 +198,7 @@ const RecordScreen: React.FC = () => {
   };
 
   const toggleFlash = () => {
-    setFlashMode((prev) => (prev === "off" ? "on" : "off"));
+    setFlashMode((prev) => (prev === "off" ? "torch" : "off"));
   };
 
   const toggleCamera = () => {
@@ -258,7 +258,7 @@ const RecordScreen: React.FC = () => {
         mode="video"
       />
 
-      <SafeAreaView style={[styles.overlay, { paddingTop: insets.top + 12 }]} pointerEvents="box-none">
+      <SafeAreaView style={[styles.overlay, { paddingTop: insets.top }]} pointerEvents="box-none">
         <View style={styles.topRow}>
           <TouchableOpacity
             style={styles.circleControl}
@@ -267,12 +267,6 @@ const RecordScreen: React.FC = () => {
           >
             <Ionicons name="close" size={22} color="#f5f5f5" />
           </TouchableOpacity>
-
-          <View style={styles.logoPill}>
-            <View style={styles.logoGlyph}>
-              <Text style={styles.logoGlyphText}>F</Text>
-            </View>
-          </View>
 
           <View style={styles.timerBadge}>
             <Ionicons name="time-outline" size={16} color="#ff8a9b" />
@@ -314,11 +308,20 @@ const RecordScreen: React.FC = () => {
         <Text style={styles.poseText}>Pose tracking overlay arriving soon</Text>
       </View>
 
-      <SafeAreaView style={[styles.bottomSafeArea, { paddingBottom: Math.max(insets.bottom + 18, 28) }]} pointerEvents="box-none">
-        <View style={styles.bottomRow}>
-          <TouchableOpacity style={styles.bottomIcon} onPress={toggleFlash}>
-            <Ionicons name={flashMode === "on" ? "flash" : "flash-outline"} size={24} color="#f8fafc" />
-          </TouchableOpacity>
+      <SafeAreaView
+        style={[styles.bottomSafeArea, { paddingBottom: Math.max(insets.bottom + 18, 28) }]}
+        pointerEvents="box-none"
+      >
+        <View style={[styles.bottomRow, showActions && styles.bottomRowActions]}>
+          {!showActions && (
+            <TouchableOpacity style={styles.bottomIcon} onPress={toggleFlash}>
+              <Ionicons
+                name={flashMode === "torch" ? "flash" : "flash-outline"}
+                size={24}
+                color="#f8fafc"
+              />
+            </TouchableOpacity>
+          )}
 
           {!showActions && (
             <TouchableOpacity
@@ -352,9 +355,11 @@ const RecordScreen: React.FC = () => {
             </View>
           )}
 
-          <TouchableOpacity style={styles.bottomIcon} onPress={toggleCamera}>
-            <Ionicons name="camera-reverse-outline" size={26} color="#f8fafc" />
-          </TouchableOpacity>
+          {!showActions && (
+            <TouchableOpacity style={styles.bottomIcon} onPress={toggleCamera}>
+              <Ionicons name="camera-reverse-outline" size={26} color="#f8fafc" />
+            </TouchableOpacity>
+          )}
         </View>
       </SafeAreaView>
     </View>
@@ -385,26 +390,6 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0,0,0,0.55)",
     alignItems: "center",
     justifyContent: "center",
-  },
-  logoPill: {
-    paddingHorizontal: 18,
-    paddingVertical: 10,
-    borderRadius: 24,
-    backgroundColor: "rgba(0,0,0,0.35)",
-  },
-  logoGlyph: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: "rgba(255,255,255,0.9)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  logoGlyphText: {
-    fontSize: 20,
-    color: "#0f172a",
-    fontFamily: "Montserrat-Bold",
-    letterSpacing: 0.6,
   },
   timerBadge: {
     flexDirection: "row",
@@ -473,9 +458,12 @@ const styles = StyleSheet.create({
   },
   bottomRow: {
     flexDirection: "row",
-    alignItems: "flex-end",
+    alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 36,
+  },
+  bottomRowActions: {
+    justifyContent: "center",
   },
   bottomIcon: {
     width: 52,
@@ -521,6 +509,9 @@ const styles = StyleSheet.create({
   actionRow: {
     flexDirection: "row",
     gap: 12,
+    alignItems: "center",
+    flexGrow: 1,
+    maxWidth: 320,
   },
   actionPill: {
     flex: 1,

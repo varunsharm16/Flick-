@@ -12,6 +12,7 @@ const baseProgress = {
   deltaFollow: +0.02,
   arcAngle: 47,
   arcNote: 'Optimal range',
+  weekUsage: [true, true, true, true, false, true, false] as const,
 };
 
 const progressTrends: Record<string, { day: string; v: number }[]> = {
