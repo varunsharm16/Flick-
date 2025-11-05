@@ -13,46 +13,27 @@ export default function AuthScreen() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const hasNavigatedRef = useRef(false);
-  const processedRedirectUrlsRef = useRef<Map<string, number>>(new Map());
-  const REDIRECT_DEBOUNCE_WINDOW_MS = 2000;
-  const isAuthExchangeInProgress = useRef(false);
+  const isProcessingAuthRef = useRef(false);
 
-  const waitForActiveExchange = useCallback(async () => {
-    const maxWaitTimeMs = 5000;
-    const intervalMs = 150;
-    let elapsed = 0;
-
-    while (isAuthExchangeInProgress.current && elapsed < maxWaitTimeMs) {
-      await new Promise((resolve) => setTimeout(resolve, intervalMs));
-      elapsed += intervalMs;
-    }
-  }, []);
-
-  const beginSessionExchange = useCallback(() => {
-    if (!isAuthExchangeInProgress.current) {
-      isAuthExchangeInProgress.current = true;
-      console.log("🔄 Starting session exchange...");
-    }
-  }, []);
-
+  // Navigate to profile once
   const navigateToProfile = useCallback(() => {
     if (hasNavigatedRef.current) {
+      console.log("⏭️ Already navigated, skipping");
       return;
     }
-
-    if (isAuthExchangeInProgress.current) {
-      isAuthExchangeInProgress.current = false;
-      console.log("✅ Exchange complete, session established.");
-    }
-
+    
     hasNavigatedRef.current = true;
+    setLoading(false);
+    console.log("✅ Navigating to profile");
     router.replace("/(tabs)/profile");
   }, [router]);
 
+  // Listen for auth state changes (main navigation trigger)
   useEffect(() => {
-    const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session) {
-        setLoading(false);
+    const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log("🔔 Auth state changed:", event, "Session:", !!session);
+      
+      if (session && event !== 'SIGNED_OUT') {
         navigateToProfile();
       }
     });
@@ -62,27 +43,27 @@ export default function AuthScreen() {
     };
   }, [navigateToProfile]);
 
+  // Check for existing session on mount
   useEffect(() => {
-    const restoreSession = async () => {
+    const checkSession = async () => {
       try {
-        const { data, error } = await supabase.auth.getSession();
-
-        if (error) {
-          throw error;
-        }
-
-        if (data.session) {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session) {
+          console.log("📱 Existing session found");
           navigateToProfile();
         }
-      } catch (sessionError) {
-        console.warn("Failed to restore session", sessionError);
+      } catch (error) {
+        console.warn("Session check failed:", error);
       }
     };
 
-    restoreSession();
+    checkSession();
   }, [navigateToProfile]);
 
   const showError = useCallback((message: string) => {
+    setLoading(false);
+    isProcessingAuthRef.current = false;
+    
     if (Platform.OS === "web") {
       window.alert(message);
     } else {
@@ -90,245 +71,133 @@ export default function AuthScreen() {
     }
   }, []);
 
-  const parseAuthParams = (url: string | undefined, params?: Record<string, string>) => {
-    const collectedParams: Record<string, string> = { ...(params ?? {}) };
-
-    if (!url) {
-      return collectedParams;
-    }
-
+  // Extract auth params from URL (handles both query params and hash fragments)
+  const extractAuthParams = (url: string): Record<string, string> => {
+    const params: Record<string, string> = {};
+    
     try {
-      const parsedUrl = Linking.parse(url);
-      if (parsedUrl?.queryParams) {
-        Object.entries(parsedUrl.queryParams).forEach(([key, value]) => {
+      // Parse query parameters
+      const parsed = Linking.parse(url);
+      if (parsed?.queryParams) {
+        Object.entries(parsed.queryParams).forEach(([key, value]) => {
           if (typeof value === "string") {
-            collectedParams[key] = value;
+            params[key] = value;
           }
         });
       }
 
+      // Parse hash fragment (OAuth often returns tokens in hash)
       const hashIndex = url.indexOf("#");
       if (hashIndex !== -1) {
         const hash = url.substring(hashIndex + 1);
-        if (typeof URLSearchParams !== "undefined") {
-          const searchParams = new URLSearchParams(hash);
-          searchParams.forEach((value, key) => {
-            collectedParams[key] = value;
-          });
-        }
+        const hashParams = new URLSearchParams(hash);
+        hashParams.forEach((value, key) => {
+          params[key] = value;
+        });
       }
-    } catch (parseError) {
-      console.warn("Failed to parse auth redirect URL", parseError);
+    } catch (error) {
+      console.warn("Failed to parse URL:", error);
     }
 
-    return collectedParams;
+    return params;
   };
 
-  const finalizeAuthentication = useCallback(
-    async (
-      authParams: Record<string, string>,
-      options?: { allowActiveExchange?: boolean }
-    ) => {
-      if (authParams.error) {
-        throw new Error(authParams.error_description ?? authParams.error ?? "Authentication failed");
-      }
+  // Process authentication parameters
+  const processAuthParams = async (params: Record<string, string>) => {
+    // Check for errors first
+    if (params.error) {
+      throw new Error(params.error_description || params.error);
+    }
 
-      if (isAuthExchangeInProgress.current && !options?.allowActiveExchange) {
-        await waitForActiveExchange();
-        return;
-      }
+    // Exchange code for session
+    if (params.code) {
+      console.log("🔄 Exchanging code for session");
+      const { error } = await supabase.auth.exchangeCodeForSession(params.code);
+      
+      if (error) throw error;
+      console.log("✅ Code exchanged successfully");
+      return;
+    }
+    
+    // Or set session directly if we have tokens
+    if (params.access_token && params.refresh_token) {
+      console.log("🔄 Setting session with tokens");
+      const { error } = await supabase.auth.setSession({
+        access_token: params.access_token,
+        refresh_token: params.refresh_token,
+      });
+      
+      if (error) throw error;
+      console.log("✅ Session set successfully");
+      return;
+    }
 
-      if (!isAuthExchangeInProgress.current) {
-        beginSessionExchange();
-      }
+    throw new Error("No valid auth data received");
+  };
 
-      if (authParams.access_token && authParams.refresh_token) {
-        const { error: sessionError } = await supabase.auth.setSession({
-          access_token: authParams.access_token,
-          refresh_token: authParams.refresh_token,
-        });
+  // Handle deep link redirects from OAuth
+  const handleAuthCallback = useCallback(async (url: string) => {
+    // Prevent duplicate processing
+    if (isProcessingAuthRef.current) {
+      console.log("⏸️ Already processing auth, skipping");
+      return;
+    }
 
-        if (sessionError) {
-          throw sessionError;
-        }
-      } else if (authParams.code) {
-        const { error: sessionError } = await supabase.auth.exchangeCodeForSession({
-          authCode: authParams.code,
-        });
+    console.log("🔗 Handling auth callback:", url);
 
-        if (sessionError) {
-          throw sessionError;
-        }
-      } else if (Object.keys(authParams).length > 0) {
-        throw new Error("No authentication response received. Please try again.");
-      }
+    const params = extractAuthParams(url);
+    
+    // Check if we have auth data
+    const hasAuthData = params.code || params.access_token || params.error;
+    if (!hasAuthData) {
+      console.log("❌ No auth data in URL");
+      return;
+    }
 
-      if (Object.keys(authParams).length > 0) {
-        const { data: sessionResult, error: sessionLookupError } = await supabase.auth.getSession();
+    isProcessingAuthRef.current = true;
 
-        if (sessionLookupError) {
-          throw sessionLookupError;
-        }
+    try {
+      await processAuthParams(params);
+      // Session will be picked up by onAuthStateChange listener
+    } catch (error: any) {
+      console.error("❌ Auth callback failed:", error);
+      showError(error?.message || "Authentication failed. Please try again.");
+    } finally {
+      isProcessingAuthRef.current = false;
+    }
+  }, [showError]);
 
-        if (!sessionResult.session) {
-          throw new Error("We couldn't finish signing you in. Please try again.");
-        }
-      }
-    },
-    [beginSessionExchange, waitForActiveExchange]
-  );
-
-  const handleAuthRedirect = useCallback(
-    async (url: string | null | undefined) => {
-      if (!url) {
-        return;
-      }
-
-      const authParams = parseAuthParams(url);
-
-      if (Object.keys(authParams).length === 0) {
-        return;
-      }
-
-      const now = Date.now();
-      const lastProcessedAt = processedRedirectUrlsRef.current.get(url);
-
-      if (lastProcessedAt !== undefined) {
-        if (now - lastProcessedAt < REDIRECT_DEBOUNCE_WINDOW_MS) {
-          return;
-        }
-
-        processedRedirectUrlsRef.current.set(url, now);
-
-        try {
-          if (isAuthExchangeInProgress.current) {
-            await waitForActiveExchange();
-          }
-
-          const { data: existingSession, error: existingSessionError } =
-            await supabase.auth.getSession();
-
-          if (existingSessionError) {
-            throw existingSessionError;
-          }
-
-          if (existingSession.session) {
-            navigateToProfile();
-          }
-        } catch (sessionCheckError) {
-          console.warn("Failed to confirm existing session after redirect", sessionCheckError);
-        }
-
-        return;
-      }
-
-      processedRedirectUrlsRef.current.set(url, now);
-
-      const verifySession = async (retries = 3) => {
-        for (let i = 0; i < retries; i++) {
-          const { data } = await supabase.auth.getSession();
-          if (data?.session) {
-            navigateToProfile();
-            return;
-          }
-          await new Promise((res) => setTimeout(res, 500));
-        }
-        console.warn("No session found after redirect retries");
-      };
-
-      try {
-        const { data: existingSession, error: existingSessionError } =
-          await supabase.auth.getSession();
-
-        if (existingSessionError) {
-          throw existingSessionError;
-        }
-
-        if (existingSession.session) {
-          navigateToProfile();
-          return;
-        }
-      } catch (sessionCheckError) {
-        console.warn("Failed to check session before finalizing redirect", sessionCheckError);
-      }
-
-      if (isAuthExchangeInProgress.current) {
-        await waitForActiveExchange();
-        try {
-          const { data: existingSession } = await supabase.auth.getSession();
-          if (existingSession?.session) {
-            navigateToProfile();
-          }
-        } catch (sessionCheckError) {
-          console.warn("Failed to confirm session after waiting for exchange", sessionCheckError);
-        }
-        return;
-      }
-
-      beginSessionExchange();
-
-      try {
-        setLoading(true);
-        await finalizeAuthentication(authParams, { allowActiveExchange: true });
-        await verifySession();
-      } catch (error: any) {
-        processedRedirectUrlsRef.current.delete(url);
-        console.error("Failed to finalize authentication from redirect", error);
-        showError(error?.message ?? "Unable to complete authentication. Please try again.");
-      } finally {
-        setLoading(false);
-        if (isAuthExchangeInProgress.current) {
-          isAuthExchangeInProgress.current = false;
-        }
-      }
-    },
-    [
-      beginSessionExchange,
-      finalizeAuthentication,
-      navigateToProfile,
-      showError,
-      waitForActiveExchange,
-    ]
-  );
-
+  // Listen for deep links
   useEffect(() => {
-    const subscription = Linking.addEventListener("url", (event) => {
-      handleAuthRedirect(event?.url);
+    // Handle initial URL (if app was opened via deep link)
+    Linking.getInitialURL().then((url) => {
+      if (url) {
+        console.log("📲 Initial URL:", url);
+        handleAuthCallback(url);
+      }
     });
 
-    Linking.getInitialURL()
-      .then((initialUrl) => {
-        if (initialUrl) {
-          handleAuthRedirect(initialUrl);
-        }
-      })
-      .catch((linkError) => {
-        console.warn("Failed to retrieve initial URL", linkError);
-      });
+    // Listen for subsequent deep links
+    const subscription = Linking.addEventListener("url", (event) => {
+      if (event?.url) {
+        handleAuthCallback(event.url);
+      }
+    });
 
     return () => {
       subscription.remove();
     };
-  }, [handleAuthRedirect]);
+  }, [handleAuthCallback]);
 
   const handleGoogleSignIn = async () => {
-    let processedResultUrl: string | undefined;
+    if (loading || isProcessingAuthRef.current) {
+      console.log("⏸️ Already loading or processing");
+      return;
+    }
 
     try {
       setLoading(true);
-
-      if (isAuthExchangeInProgress.current) {
-        await waitForActiveExchange();
-        try {
-          const { data: existingSession } = await supabase.auth.getSession();
-          if (existingSession?.session) {
-            navigateToProfile();
-          }
-        } catch (sessionCheckError) {
-          console.warn("Failed to confirm session after waiting for exchange", sessionCheckError);
-        }
-        return;
-      }
+      console.log("🚀 Starting Google sign in");
 
       const isExpoGo = Constants.appOwnership === "expo";
       const redirectPath = Platform.OS === "web" ? "Auth" : "auth-callback";
@@ -338,6 +207,9 @@ export default function AuthScreen() {
         useProxy: Platform.OS !== "web" && isExpoGo,
       });
 
+      console.log("🔀 Redirect URL:", redirectUrl);
+
+      // For web, use standard flow
       if (Platform.OS === "web") {
         const { error } = await supabase.auth.signInWithOAuth({
           provider: "google",
@@ -346,13 +218,11 @@ export default function AuthScreen() {
           },
         });
 
-        if (error) {
-          throw error;
-        }
-
+        if (error) throw error;
         return;
       }
 
+      // For mobile, get the auth URL
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
@@ -361,93 +231,62 @@ export default function AuthScreen() {
         },
       });
 
-      if (error) {
-        throw error;
+      if (error) throw error;
+      if (!data?.url) throw new Error("No authentication URL returned");
+
+      console.log("🌐 Opening browser for auth");
+
+      // Open the browser for authentication
+      const result = await WebBrowser.openAuthSessionAsync(
+        data.url,
+        redirectUrl
+      );
+
+      console.log("📱 Browser result:", result.type);
+
+      // Handle cancellation
+      if (result.type === "cancel" || result.type === "dismiss") {
+        setLoading(false);
+        return;
       }
 
-      const authUrl = data?.url;
-
-      if (!authUrl) {
-        throw new Error("No authentication URL returned. Please try again.");
-      }
-
-      await WebBrowser.warmUpAsync();
-
-      const result = await WebBrowser.openAuthSessionAsync(authUrl, redirectUrl);
-
-      if (result.type !== "success") {
-        if (result.type === "dismiss" || result.type === "cancel") {
-          throw new Error("Authentication was canceled. Please try again.");
-        }
-
-        throw new Error("Unable to complete authentication. Please try again.");
-      }
-
-      if (Platform.OS !== "web") {
+      // Handle success - process the result URL
+      if (result.type === "success" && result.url) {
+        console.log("🎯 Got result URL, processing...");
+        isProcessingAuthRef.current = true;
+        
         try {
-          await WebBrowser.dismissBrowser();
-        } catch (dismissError) {
-          console.warn("Failed to dismiss web browser", dismissError);
-        }
-      }
-
-      const authParams = parseAuthParams(result.url);
-
-      if (Object.keys(authParams).length === 0) {
-        throw new Error("No authentication response received. Please try again.");
-      }
-
-      if (result.url) {
-        const wasProcessed = processedRedirectUrlsRef.current.has(result.url);
-
-        if (wasProcessed) {
-          const { data: existingSession, error: existingSessionError } = await supabase.auth.getSession();
-
-          if (existingSessionError) {
-            throw existingSessionError;
-          }
-
-          if (existingSession.session) {
+          const params = extractAuthParams(result.url);
+          console.log("📦 Extracted params:", Object.keys(params));
+          
+          await processAuthParams(params);
+          
+          // Give Supabase a moment to set the session
+          await new Promise(resolve => setTimeout(resolve, 500));
+          
+          // Check if session is ready
+          const { data: sessionData } = await supabase.auth.getSession();
+          if (sessionData?.session) {
+            console.log("✅ Session confirmed, navigating");
             navigateToProfile();
-            return;
+          } else {
+            console.log("⏳ Waiting for session to be set...");
+            // The onAuthStateChange listener will handle navigation
           }
-        } else {
-          processedRedirectUrlsRef.current.set(result.url, Date.now());
-          processedResultUrl = result.url;
+        } catch (error: any) {
+          console.error("❌ Failed to process auth result:", error);
+          showError(error?.message || "Authentication failed");
+        } finally {
+          isProcessingAuthRef.current = false;
         }
+      } else {
+        console.log("❌ Unexpected browser result:", result.type);
+        setLoading(false);
       }
 
-      beginSessionExchange();
-
-      await finalizeAuthentication(authParams, { allowActiveExchange: true });
-
-      // 🔁 Wait until Supabase session becomes available before navigating
-      for (let i = 0; i < 10; i++) {
-        const { data } = await supabase.auth.getSession();
-        if (data?.session) {
-          console.log("✅ Session verified after exchange, navigating to profile");
-          navigateToProfile();
-          break;
-        }
-
-        await new Promise((r) => setTimeout(r, 300));
-      }
     } catch (error: any) {
-      if (processedResultUrl) {
-        processedRedirectUrlsRef.current.delete(processedResultUrl);
-      }
-      console.error("Google sign-in failed", error);
-      showError(error?.message ?? "Unable to sign in with Google. Please try again.");
-    } finally {
-      setLoading(false);
-      isAuthExchangeInProgress.current = false;
-      if (Platform.OS !== "web") {
-        try {
-          await WebBrowser.coolDownAsync();
-        } catch (coolDownError) {
-          console.warn("Failed to cool down web browser", coolDownError);
-        }
-      }
+      console.error("❌ Google sign-in failed:", error);
+      showError(error?.message || "Failed to sign in with Google");
     }
   };
 
@@ -462,9 +301,13 @@ export default function AuthScreen() {
           disabled={loading}
           activeOpacity={0.85}
         >
-          <Text style={styles.buttonText}>{loading ? "Connecting…" : "Continue with Google"}</Text>
+          <Text style={styles.buttonText}>
+            {loading ? "Connecting…" : "Continue with Google"}
+          </Text>
         </TouchableOpacity>
-        <Text style={styles.helperText}>We'll open Google to complete your sign in.</Text>
+        <Text style={styles.helperText}>
+          We'll open Google to complete your sign in.
+        </Text>
       </View>
     </View>
   );
