@@ -13,7 +13,8 @@ export default function AuthScreen() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const hasNavigatedRef = useRef(false);
-  const processedRedirectUrlsRef = useRef<Set<string>>(new Set());
+  const processedRedirectUrlsRef = useRef<Map<string, number>>(new Map());
+  const REDIRECT_DEBOUNCE_WINDOW_MS = 2000;
   const isAuthExchangeInProgress = useRef(false);
 
   const waitForActiveExchange = useCallback(async () => {
@@ -142,48 +143,35 @@ export default function AuthScreen() {
       }
 
       if (authParams.access_token && authParams.refresh_token) {
-        try {
-          const { error: sessionError } = await supabase.auth.setSession({
-            access_token: authParams.access_token,
-            refresh_token: authParams.refresh_token,
-          });
+        const { error: sessionError } = await supabase.auth.setSession({
+          access_token: authParams.access_token,
+          refresh_token: authParams.refresh_token,
+        });
 
-          if (sessionError) {
-            throw sessionError;
-          }
-        } finally {
-          isAuthExchangeInProgress.current = false;
+        if (sessionError) {
+          throw sessionError;
         }
       } else if (authParams.code) {
-        try {
-          const { error: sessionError } = await supabase.auth.exchangeCodeForSession({
-            authCode: authParams.code,
-          });
+        const { error: sessionError } = await supabase.auth.exchangeCodeForSession({
+          authCode: authParams.code,
+        });
 
-          if (sessionError) {
-            throw sessionError;
-          }
-        } finally {
-          isAuthExchangeInProgress.current = false;
+        if (sessionError) {
+          throw sessionError;
         }
       } else if (Object.keys(authParams).length > 0) {
-        isAuthExchangeInProgress.current = false;
         throw new Error("No authentication response received. Please try again.");
       }
 
       if (Object.keys(authParams).length > 0) {
-        try {
-          const { data: sessionResult, error: sessionLookupError } = await supabase.auth.getSession();
+        const { data: sessionResult, error: sessionLookupError } = await supabase.auth.getSession();
 
-          if (sessionLookupError) {
-            throw sessionLookupError;
-          }
+        if (sessionLookupError) {
+          throw sessionLookupError;
+        }
 
-          if (!sessionResult.session) {
-            throw new Error("We couldn't finish signing you in. Please try again.");
-          }
-        } finally {
-          isAuthExchangeInProgress.current = false;
+        if (!sessionResult.session) {
+          throw new Error("We couldn't finish signing you in. Please try again.");
         }
       }
     },
@@ -202,7 +190,16 @@ export default function AuthScreen() {
         return;
       }
 
-      if (processedRedirectUrlsRef.current.has(url)) {
+      const now = Date.now();
+      const lastProcessedAt = processedRedirectUrlsRef.current.get(url);
+
+      if (lastProcessedAt !== undefined) {
+        if (now - lastProcessedAt < REDIRECT_DEBOUNCE_WINDOW_MS) {
+          return;
+        }
+
+        processedRedirectUrlsRef.current.set(url, now);
+
         try {
           if (isAuthExchangeInProgress.current) {
             await waitForActiveExchange();
@@ -225,7 +222,19 @@ export default function AuthScreen() {
         return;
       }
 
-      processedRedirectUrlsRef.current.add(url);
+      processedRedirectUrlsRef.current.set(url, now);
+
+      const verifySession = async (retries = 3) => {
+        for (let i = 0; i < retries; i++) {
+          const { data } = await supabase.auth.getSession();
+          if (data?.session) {
+            navigateToProfile();
+            return;
+          }
+          await new Promise((res) => setTimeout(res, 500));
+        }
+        console.warn("No session found after redirect retries");
+      };
 
       try {
         const { data: existingSession, error: existingSessionError } =
@@ -261,13 +270,16 @@ export default function AuthScreen() {
       try {
         setLoading(true);
         await finalizeAuthentication(authParams, { allowActiveExchange: true });
-        navigateToProfile();
+        await verifySession();
       } catch (error: any) {
         processedRedirectUrlsRef.current.delete(url);
         console.error("Failed to finalize authentication from redirect", error);
         showError(error?.message ?? "Unable to complete authentication. Please try again.");
       } finally {
         setLoading(false);
+        if (isAuthExchangeInProgress.current) {
+          isAuthExchangeInProgress.current = false;
+        }
       }
     },
     [
@@ -400,7 +412,7 @@ export default function AuthScreen() {
             return;
           }
         } else {
-          processedRedirectUrlsRef.current.add(result.url);
+          processedRedirectUrlsRef.current.set(result.url, Date.now());
           processedResultUrl = result.url;
         }
       }
@@ -418,6 +430,9 @@ export default function AuthScreen() {
       showError(error?.message ?? "Unable to sign in with Google. Please try again.");
     } finally {
       setLoading(false);
+      if (isAuthExchangeInProgress.current) {
+        isAuthExchangeInProgress.current = false;
+      }
       if (Platform.OS !== "web") {
         try {
           await WebBrowser.coolDownAsync();
