@@ -28,11 +28,16 @@ const FlickTabBar: React.FC<BottomTabBarProps> = ({ state, descriptors, navigati
     return null;
   }
 
-  const containerPadding = Math.max(insets.bottom - 4, 12);
-  const bottomOffset = Math.max(insets.bottom * 0.35, 6);
+  const verticalPadding = Math.max(insets.bottom * 0.45, 14);
+  const bottomOffset = Math.max(insets.bottom * 0.35, 10);
 
   return (
-    <View style={[styles.tabBarContainer, { paddingBottom: containerPadding, bottom: bottomOffset }]}>
+    <View
+      style={[
+        styles.tabBarContainer,
+        { paddingBottom: verticalPadding, paddingTop: verticalPadding, bottom: bottomOffset },
+      ]}
+    >
       <View style={styles.tabBar}>
         {state.routes.map((route, index) => {
           const { options } = descriptors[route.key];
@@ -177,7 +182,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-evenly",
     paddingHorizontal: 20,
-    paddingVertical: 14,
+    paddingVertical: 12,
     gap: 12,
   },
   tabItem: {
