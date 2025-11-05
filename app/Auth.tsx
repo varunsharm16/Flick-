@@ -142,23 +142,29 @@ export default function AuthScreen() {
       }
 
       if (authParams.access_token && authParams.refresh_token) {
-        const { error: sessionError } = await supabase.auth.setSession({
-          access_token: authParams.access_token,
-          refresh_token: authParams.refresh_token,
-        });
+        try {
+          const { error: sessionError } = await supabase.auth.setSession({
+            access_token: authParams.access_token,
+            refresh_token: authParams.refresh_token,
+          });
 
-        if (sessionError) {
+          if (sessionError) {
+            throw sessionError;
+          }
+        } finally {
           isAuthExchangeInProgress.current = false;
-          throw sessionError;
         }
       } else if (authParams.code) {
-        const { error: sessionError } = await supabase.auth.exchangeCodeForSession({
-          authCode: authParams.code,
-        });
+        try {
+          const { error: sessionError } = await supabase.auth.exchangeCodeForSession({
+            authCode: authParams.code,
+          });
 
-        if (sessionError) {
+          if (sessionError) {
+            throw sessionError;
+          }
+        } finally {
           isAuthExchangeInProgress.current = false;
-          throw sessionError;
         }
       } else if (Object.keys(authParams).length > 0) {
         isAuthExchangeInProgress.current = false;
@@ -166,16 +172,18 @@ export default function AuthScreen() {
       }
 
       if (Object.keys(authParams).length > 0) {
-        const { data: sessionResult, error: sessionLookupError } = await supabase.auth.getSession();
+        try {
+          const { data: sessionResult, error: sessionLookupError } = await supabase.auth.getSession();
 
-        if (sessionLookupError) {
-          isAuthExchangeInProgress.current = false;
-          throw sessionLookupError;
-        }
+          if (sessionLookupError) {
+            throw sessionLookupError;
+          }
 
-        if (!sessionResult.session) {
+          if (!sessionResult.session) {
+            throw new Error("We couldn't finish signing you in. Please try again.");
+          }
+        } finally {
           isAuthExchangeInProgress.current = false;
-          throw new Error("We couldn't finish signing you in. Please try again.");
         }
       }
     },
@@ -196,7 +204,8 @@ export default function AuthScreen() {
 
       if (processedRedirectUrlsRef.current.has(url)) {
         try {
-          const { data: existingSession, error: existingSessionError } = await supabase.auth.getSession();
+          const { data: existingSession, error: existingSessionError } =
+            await supabase.auth.getSession();
 
           if (existingSessionError) {
             throw existingSessionError;
@@ -207,6 +216,8 @@ export default function AuthScreen() {
           }
         } catch (sessionCheckError) {
           console.warn("Failed to confirm existing session after redirect", sessionCheckError);
+        } finally {
+          isAuthExchangeInProgress.current = false;
         }
 
         return;
@@ -215,7 +226,8 @@ export default function AuthScreen() {
       processedRedirectUrlsRef.current.add(url);
 
       try {
-        const { data: existingSession, error: existingSessionError } = await supabase.auth.getSession();
+        const { data: existingSession, error: existingSessionError } =
+          await supabase.auth.getSession();
 
         if (existingSessionError) {
           throw existingSessionError;
@@ -227,6 +239,8 @@ export default function AuthScreen() {
         }
       } catch (sessionCheckError) {
         console.warn("Failed to check session before finalizing redirect", sessionCheckError);
+      } finally {
+        isAuthExchangeInProgress.current = false;
       }
 
       if (isAuthExchangeInProgress.current) {
@@ -238,6 +252,8 @@ export default function AuthScreen() {
           }
         } catch (sessionCheckError) {
           console.warn("Failed to confirm session after waiting for exchange", sessionCheckError);
+        } finally {
+          isAuthExchangeInProgress.current = false;
         }
         return;
       }
