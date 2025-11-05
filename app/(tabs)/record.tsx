@@ -258,7 +258,7 @@ const RecordScreen: React.FC = () => {
         mode="video"
       />
 
-      <SafeAreaView style={[styles.overlay, { paddingTop: insets.top }]} pointerEvents="box-none">
+      <SafeAreaView style={styles.overlay} edges={['top']} pointerEvents="box-none">
         <View style={styles.topRow}>
           <TouchableOpacity
             style={styles.circleControl}

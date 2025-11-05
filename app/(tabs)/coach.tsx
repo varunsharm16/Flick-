@@ -43,7 +43,7 @@ const CoachScreen: React.FC = () => {
   const [messages, setMessages] = useState<Message[]>(initialMessages);
   const [input, setInput] = useState("");
   const [isThinking, setIsThinking] = useState(false);
-  const tabBarClearance = Math.max(insets.bottom + 48, 84);
+  const tabBarClearance = Math.max(insets.bottom + 120, 140);
 
   useEffect(() => {
     listRef.current?.scrollToEnd({ animated: true });
@@ -97,7 +97,7 @@ const CoachScreen: React.FC = () => {
   };
 
   return (
-    <SafeAreaView style={[styles.safeArea, { paddingTop: insets.top }]} edges={['top']}>
+    <SafeAreaView style={styles.safeArea} edges={['top']}>
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Coach Flick</Text>
         <Text style={styles.headerSubtitle}>Your AI shooting assistant</Text>
@@ -127,10 +127,12 @@ const CoachScreen: React.FC = () => {
 
       <KeyboardAvoidingView
         behavior={Platform.select({ ios: "padding", android: undefined })}
-        keyboardVerticalOffset={insets.bottom + 120}
+        keyboardVerticalOffset={insets.bottom + 150}
       >
         <LinearGradient
-          colors={["rgba(255,255,255,0.08)", "rgba(255,255,255,0.04)"]}
+          colors={["rgba(255,255,255,0.16)", "rgba(255,255,255,0.05)"]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
           style={[styles.inputBar, { marginBottom: tabBarClearance }]}
         >
           <TextInput
@@ -239,28 +241,34 @@ const styles = StyleSheet.create({
   },
   inputBar: {
     flexDirection: "row",
-    alignItems: "flex-end",
+    alignItems: "center",
     gap: 12,
     paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderTopWidth: 1,
-    borderColor: "rgba(255,255,255,0.12)",
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
+    paddingVertical: 12,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.18)",
+    marginHorizontal: 20,
+    shadowColor: "#000",
+    shadowOpacity: 0.28,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 12 },
+    elevation: 12,
   },
   input: {
     flex: 1,
-    minHeight: 48,
+    minHeight: 44,
     maxHeight: 120,
     fontSize: 15,
     fontFamily: "Montserrat-SemiBold",
     color: "#fdf7eb",
-    paddingVertical: 6,
+    paddingVertical: 0,
+    textAlignVertical: "center",
   },
   sendButton: {
-    width: 46,
-    height: 46,
-    borderRadius: 23,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: "rgba(255,255,255,0.08)",
     alignItems: "center",
     justifyContent: "center",

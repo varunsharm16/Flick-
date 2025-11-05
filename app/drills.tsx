@@ -103,7 +103,7 @@ const DrillsScreen: React.FC = () => {
   );
 
   return (
-    <SafeAreaView style={[styles.safeArea, { paddingTop: insets.top }]} edges={['top', 'left', 'right']}>
+    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       <View style={styles.container}>
         {isLoading ? (
           <ActivityIndicator style={{ marginTop: 40 }} color="#FF6F3C" />
@@ -111,9 +111,9 @@ const DrillsScreen: React.FC = () => {
           <SectionList
             sections={sections}
             keyExtractor={item => item.id}
-            contentInsetAdjustmentBehavior="automatic"
+            contentInsetAdjustmentBehavior="never"
             keyboardShouldPersistTaps="handled"
-            contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}
+            contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24, paddingTop: 8 }]}
             ListHeaderComponent={
               <View style={styles.searchHeader}>
                 <Text style={styles.heading}>Drills</Text>
