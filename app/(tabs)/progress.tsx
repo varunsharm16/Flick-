@@ -90,6 +90,7 @@ const ProgressScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
   const [range, setRange] = useState<RangeOption>("7D");
   const [selectedWidget, setSelectedWidget] = useState<Widget | null>(null);
+  const topInsetSpacing = insets.top > 0 ? 5 : 0;
 
   const { data: progress } = useQuery({
     queryKey: ["progress", range],
@@ -215,12 +216,12 @@ const ProgressScreen: React.FC = () => {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top']}>
+    <SafeAreaView style={[styles.safeArea, { paddingTop: topInsetSpacing }]} edges={['top']}>
       <ScrollView
         contentContainerStyle={{
           paddingBottom: insets.bottom + 140,
           paddingHorizontal: horizontalPadding,
-          paddingTop: 8,
+          paddingTop: topInsetSpacing + 8,
         }}
         contentInsetAdjustmentBehavior="never"
         showsVerticalScrollIndicator={false}
@@ -347,9 +348,12 @@ const ProgressScreen: React.FC = () => {
       </ScrollView>
 
       <Modal visible={!!selectedWidget} animationType="slide" onRequestClose={() => setSelectedWidget(null)}>
-        <SafeAreaView style={styles.modalSafe} edges={['top']}>
+        <SafeAreaView style={[styles.modalSafe, { paddingTop: topInsetSpacing }]} edges={['top']}>
           <ScrollView
-            contentContainerStyle={{ paddingBottom: insets.bottom + 40 }}
+            contentContainerStyle={{
+              paddingBottom: insets.bottom + 40,
+              paddingTop: topInsetSpacing + 12,
+            }}
             showsVerticalScrollIndicator={false}
           >
             <View style={styles.modalHeader}>
