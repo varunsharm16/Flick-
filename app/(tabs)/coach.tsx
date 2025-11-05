@@ -1,8 +1,9 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Animated,
   FlatList,
-  KeyboardAvoidingView,
+  Keyboard,
   Platform,
   StyleSheet,
   Text,
@@ -44,10 +45,52 @@ const CoachScreen: React.FC = () => {
   const [input, setInput] = useState("");
   const [isThinking, setIsThinking] = useState(false);
   const tabBarClearance = Math.max(insets.bottom + 120, 140);
+  const keyboardOffset = useRef(new Animated.Value(tabBarClearance)).current;
+  const keyboardVisible = useRef(false);
 
   useEffect(() => {
     listRef.current?.scrollToEnd({ animated: true });
   }, [messages, isThinking]);
+
+  useEffect(() => {
+    if (!keyboardVisible.current) {
+      keyboardOffset.setValue(tabBarClearance);
+    }
+  }, [keyboardOffset, tabBarClearance]);
+
+  useEffect(() => {
+    const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+    const hideEvent = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+
+    const handleShow = (event: any) => {
+      keyboardVisible.current = true;
+      const keyboardHeight = event?.endCoordinates?.height ?? 0;
+      const duration = event?.duration ?? 220;
+      Animated.timing(keyboardOffset, {
+        toValue: keyboardHeight + tabBarClearance,
+        duration,
+        useNativeDriver: false,
+      }).start();
+    };
+
+    const handleHide = (event: any) => {
+      keyboardVisible.current = false;
+      const duration = event?.duration ?? 220;
+      Animated.timing(keyboardOffset, {
+        toValue: tabBarClearance,
+        duration,
+        useNativeDriver: false,
+      }).start();
+    };
+
+    const showSubscription = Keyboard.addListener(showEvent, handleShow);
+    const hideSubscription = Keyboard.addListener(hideEvent, handleHide);
+
+    return () => {
+      showSubscription.remove();
+      hideSubscription.remove();
+    };
+  }, [keyboardOffset, tabBarClearance]);
 
   const placeholder = useMemo(() => {
     const hints = [
@@ -109,7 +152,11 @@ const CoachScreen: React.FC = () => {
           data={messages}
           keyExtractor={(item) => item.id}
           renderItem={renderItem}
-          contentContainerStyle={{ paddingBottom: insets.bottom + 180, paddingHorizontal: 20, paddingTop: 12 }}
+          contentContainerStyle={{
+            paddingBottom: tabBarClearance + 120,
+            paddingHorizontal: 20,
+            paddingTop: 12,
+          }}
           showsVerticalScrollIndicator={false}
         />
         {isThinking && (
@@ -125,15 +172,12 @@ const CoachScreen: React.FC = () => {
         )}
       </LinearGradient>
 
-      <KeyboardAvoidingView
-        behavior={Platform.select({ ios: "padding", android: undefined })}
-        keyboardVerticalOffset={insets.bottom + 150}
-      >
+      <Animated.View style={[styles.inputWrapper, { marginBottom: keyboardOffset }]}>
         <LinearGradient
           colors={["rgba(255,255,255,0.16)", "rgba(255,255,255,0.05)"]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
-          style={[styles.inputBar, { marginBottom: tabBarClearance }]}
+          style={styles.inputBar}
         >
           <TextInput
             value={input}
@@ -142,6 +186,7 @@ const CoachScreen: React.FC = () => {
             placeholderTextColor="rgba(255,255,255,0.45)"
             style={styles.input}
             multiline
+            textAlign={input.trim().length === 0 ? "center" : "left"}
           />
           <TouchableOpacity
             style={[styles.sendButton, input.trim() ? styles.sendButtonActive : null]}
@@ -151,7 +196,7 @@ const CoachScreen: React.FC = () => {
             <Ionicons name="send" size={20} color={input.trim() ? "#050505" : "rgba(255,255,255,0.35)"} />
           </TouchableOpacity>
         </LinearGradient>
-      </KeyboardAvoidingView>
+      </Animated.View>
     </SafeAreaView>
   );
 };
@@ -239,12 +284,15 @@ const styles = StyleSheet.create({
     color: "#ff9100",
     fontFamily: "Montserrat-SemiBold",
   },
+  inputWrapper: {
+    width: "100%",
+  },
   inputBar: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
+    gap: 10,
     paddingHorizontal: 20,
-    paddingVertical: 12,
+    paddingVertical: 8,
     borderRadius: 999,
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.18)",
@@ -257,7 +305,7 @@ const styles = StyleSheet.create({
   },
   input: {
     flex: 1,
-    minHeight: 44,
+    minHeight: 36,
     maxHeight: 120,
     fontSize: 15,
     fontFamily: "Montserrat-SemiBold",
@@ -266,9 +314,9 @@ const styles = StyleSheet.create({
     textAlignVertical: "center",
   },
   sendButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: "rgba(255,255,255,0.08)",
     alignItems: "center",
     justifyContent: "center",
