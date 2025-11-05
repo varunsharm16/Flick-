@@ -421,7 +421,17 @@ export default function AuthScreen() {
 
       await finalizeAuthentication(authParams, { allowActiveExchange: true });
 
-      navigateToProfile();
+      // 🔁 Wait until Supabase session becomes available before navigating
+      for (let i = 0; i < 10; i++) {
+        const { data } = await supabase.auth.getSession();
+        if (data?.session) {
+          console.log("✅ Session verified after exchange, navigating to profile");
+          navigateToProfile();
+          break;
+        }
+
+        await new Promise((r) => setTimeout(r, 300));
+      }
     } catch (error: any) {
       if (processedResultUrl) {
         processedRedirectUrlsRef.current.delete(processedResultUrl);
@@ -430,9 +440,7 @@ export default function AuthScreen() {
       showError(error?.message ?? "Unable to sign in with Google. Please try again.");
     } finally {
       setLoading(false);
-      if (isAuthExchangeInProgress.current) {
-        isAuthExchangeInProgress.current = false;
-      }
+      isAuthExchangeInProgress.current = false;
       if (Platform.OS !== "web") {
         try {
           await WebBrowser.coolDownAsync();
