@@ -204,19 +204,19 @@ export default function AuthScreen() {
 
       if (processedRedirectUrlsRef.current.has(url)) {
         try {
-          try {
-            const { data: existingSession, error: existingSessionError } =
-              await supabase.auth.getSession();
+          if (isAuthExchangeInProgress.current) {
+            await waitForActiveExchange();
+          }
 
-            if (existingSessionError) {
-              throw existingSessionError;
-            }
+          const { data: existingSession, error: existingSessionError } =
+            await supabase.auth.getSession();
 
-            if (existingSession.session) {
-              navigateToProfile();
-            }
-          } finally {
-            isAuthExchangeInProgress.current = false;
+          if (existingSessionError) {
+            throw existingSessionError;
+          }
+
+          if (existingSession.session) {
+            navigateToProfile();
           }
         } catch (sessionCheckError) {
           console.warn("Failed to confirm existing session after redirect", sessionCheckError);
@@ -228,20 +228,16 @@ export default function AuthScreen() {
       processedRedirectUrlsRef.current.add(url);
 
       try {
-        try {
-          const { data: existingSession, error: existingSessionError } =
-            await supabase.auth.getSession();
+        const { data: existingSession, error: existingSessionError } =
+          await supabase.auth.getSession();
 
-          if (existingSessionError) {
-            throw existingSessionError;
-          }
+        if (existingSessionError) {
+          throw existingSessionError;
+        }
 
-          if (existingSession.session) {
-            navigateToProfile();
-            return;
-          }
-        } finally {
-          isAuthExchangeInProgress.current = false;
+        if (existingSession.session) {
+          navigateToProfile();
+          return;
         }
       } catch (sessionCheckError) {
         console.warn("Failed to check session before finalizing redirect", sessionCheckError);
@@ -250,13 +246,9 @@ export default function AuthScreen() {
       if (isAuthExchangeInProgress.current) {
         await waitForActiveExchange();
         try {
-          try {
-            const { data: existingSession } = await supabase.auth.getSession();
-            if (existingSession?.session) {
-              navigateToProfile();
-            }
-          } finally {
-            isAuthExchangeInProgress.current = false;
+          const { data: existingSession } = await supabase.auth.getSession();
+          if (existingSession?.session) {
+            navigateToProfile();
           }
         } catch (sessionCheckError) {
           console.warn("Failed to confirm session after waiting for exchange", sessionCheckError);
