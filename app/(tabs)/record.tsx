@@ -16,6 +16,13 @@ import { LinearGradient } from "expo-linear-gradient";
 import * as FileSystem from "expo-file-system";
 import { useMutation } from "@tanstack/react-query";
 import { useRouter } from "expo-router";
+import { pushSessionSummary } from "../lib/coach";
+import "react-native-get-random-values";
+import { v4 as uuid } from "uuid";
+import { analyzePose } from "../lib/poseProcessor";
+
+
+
 
 import { api } from "../api/client";
 
@@ -205,11 +212,42 @@ const RecordScreen: React.FC = () => {
     setCameraPosition((prev) => (prev === "back" ? "front" : "back"));
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!videoUri) return;
     setShowActions(false);
-    analyzeMutation.mutate(videoUri);
+
+    try {
+      // 🧠 Analyze the recorded video using MediaPipe (mocked for now)
+      const stats = await analyzePose(videoUri);
+
+      // 📦 Package the session data
+      const session = {
+        id: uuid(),
+        user: "varun",
+        capturedAt: new Date().toISOString(),
+        stats, // replace the metrics below with real data later
+        notes: "AI-generated from MediaPipe data",
+        metrics: {
+          accuracyPct: stats.accuracy ?? 0.8,
+          consistency: stats.consistency ?? 0.85,
+          speed: stats.speed ?? 0.9,
+        },
+      };
+
+      // 🚀 Send to backend and OpenAI vector store
+      await pushSessionSummary(session);
+
+      Alert.alert("Session uploaded!", "Your shot stats have been processed successfully.");
+      setVideoUri(null);
+      setElapsedMs(0);
+    } catch (err) {
+      console.error("❌ Upload failed:", err);
+      Alert.alert("Upload failed", "Something went wrong while sending your data.");
+      setShowActions(true);
+    }
   };
+
+
 
   const handleDiscard = () => {
     Alert.alert("Remove clip?", "This takes the recording out of your queue.", [

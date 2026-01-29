@@ -1,13 +1,56 @@
-import React, { useEffect, useState } from "react";
-import { Tabs } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import type { BottomTabBarProps } from "@react-navigation/bottom-tabs";
-import { Keyboard, Platform, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Tabs } from "expo-router";
+import React, { useEffect, useState } from "react";
+import { Dimensions, Keyboard, Platform, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import Svg, { Path } from "react-native-svg";
+
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
+
+// Fixed lean height for the pill - just slightly larger than the 64px button
+const PILL_HEIGHT = 72;
+const BUTTON_RADIUS = 32; // Camera button is 64px diameter
+
+// Custom tab bar background - lean pill with button-matched left curvature
+const TabBarBackground: React.FC<{ width: number; containerHeight: number }> = ({ width, containerHeight }) => {
+  const pillHeight = PILL_HEIGHT;
+  const leftRadius = 35; // 32px button + 3px padding
+  const rightRadius = pillHeight / 2; // Standard pill radius for right side
+  const yOffset = (containerHeight - pillHeight) / 2; // Center the pill vertically
+
+  const circleX = 52; // Center of the left arc matches the button center (52px from left)
+
+  const path = `
+    M ${circleX} ${yOffset}
+    L ${width - rightRadius} ${yOffset}
+    A ${rightRadius} ${rightRadius} 0 0 1 ${width - rightRadius} ${yOffset + pillHeight}
+    L ${circleX} ${yOffset + pillHeight}
+    A ${leftRadius} ${leftRadius} 0 0 1 ${circleX} ${yOffset}
+    Z
+  `;
+
+
+  return (
+    <Svg
+      width={width}
+      height={containerHeight}
+      style={StyleSheet.absoluteFill}
+    >
+      <Path
+        d={path}
+        fill="rgba(10,10,10,0.92)"
+        stroke="rgba(255,255,255,0.08)"
+        strokeWidth={1}
+      />
+    </Svg>
+  );
+};
 
 const FlickTabBar: React.FC<BottomTabBarProps> = ({ state, descriptors, navigation }) => {
   const insets = useSafeAreaInsets();
   const [keyboardVisible, setKeyboardVisible] = useState(false);
+  const [containerLayout, setContainerLayout] = useState({ width: 0, height: 0 });
 
   useEffect(() => {
     const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
@@ -37,7 +80,14 @@ const FlickTabBar: React.FC<BottomTabBarProps> = ({ state, descriptors, navigati
         styles.tabBarContainer,
         { paddingBottom: verticalPadding, paddingTop: verticalPadding, bottom: bottomOffset },
       ]}
+      onLayout={(e) => {
+        const { width, height } = e.nativeEvent.layout;
+        setContainerLayout({ width, height });
+      }}
     >
+      {containerLayout.width > 0 && (
+        <TabBarBackground width={containerLayout.width} containerHeight={containerLayout.height} />
+      )}
       <View style={styles.tabBar}>
         {state.routes.map((route, index) => {
           const { options } = descriptors[route.key];
@@ -45,8 +95,8 @@ const FlickTabBar: React.FC<BottomTabBarProps> = ({ state, descriptors, navigati
             typeof options.tabBarLabel === "string"
               ? options.tabBarLabel
               : typeof options.title === "string"
-              ? options.title
-              : route.name;
+                ? options.title
+                : route.name;
           const isFocused = state.index === index;
 
           const onPress = () => {
@@ -122,7 +172,7 @@ const FlickTabBar: React.FC<BottomTabBarProps> = ({ state, descriptors, navigati
 
 export default function TabLayout() {
   return (
-    <Tabs screenOptions={{ headerShown: false }} tabBar={(props) => <FlickTabBar {...props} /> }>
+    <Tabs screenOptions={{ headerShown: false }} tabBar={(props) => <FlickTabBar {...props} />}>
       <Tabs.Screen
         name="record"
         options={{
@@ -166,16 +216,12 @@ const styles = StyleSheet.create({
     position: "absolute",
     left: 18,
     right: 18,
-    borderRadius: 999,
-    backgroundColor: "rgba(10,10,10,0.92)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.08)",
+    overflow: "visible",
     shadowColor: "#000",
     shadowOpacity: 0.25,
     shadowRadius: 20,
     shadowOffset: { width: 0, height: 12 },
     elevation: 16,
-    overflow: "hidden",
   },
   tabBar: {
     flexDirection: "row",
