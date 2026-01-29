@@ -1,12 +1,14 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Stack } from "expo-router";
-import { StatusBar } from "expo-status-bar";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Platform, Text, TextInput, View } from "react-native";
-import * as SplashScreen from "expo-splash-screen";
 import * as Font from "expo-font";
+import { Stack } from "expo-router";
+import * as SplashScreen from "expo-splash-screen";
+import { StatusBar } from "expo-status-bar";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { Platform, Text, TextInput, View } from "react-native";
 
+import { useNotifications } from "../hooks/useNotifications";
 import AnimatedSplash from "./components/AnimatedSplash";
+import { useSession } from "./store/useSession";
 
 const queryClient = new QueryClient();
 
@@ -29,6 +31,17 @@ export default function Layout() {
   const [fontsLoaded, setFontsLoaded] = useState(false);
   const [showSplash, setShowSplash] = useState(true);
   const didSetDefaults = useRef(false);
+
+  // Initialize push notifications
+  const { expoPushToken } = useNotifications();
+  const setPushToken = useSession(state => state.setPushToken);
+
+  // Store the push token when it's available
+  useEffect(() => {
+    if (expoPushToken) {
+      setPushToken(expoPushToken);
+    }
+  }, [expoPushToken, setPushToken]);
 
   useEffect(() => {
     let mounted = true;
@@ -72,7 +85,7 @@ export default function Layout() {
 
     const timeout = setTimeout(() => {
       setShowSplash(false);
-      SplashScreen.hideAsync().catch(() => {});
+      SplashScreen.hideAsync().catch(() => { });
     }, 2000);
 
     return () => {
