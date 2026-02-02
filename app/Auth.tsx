@@ -1,10 +1,11 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
-import { View, Text, TouchableOpacity, StyleSheet, Platform, Alert } from "react-native";
+import * as AppleAuthentication from "expo-apple-authentication";
+import * as AuthSession from "expo-auth-session";
+import Constants from "expo-constants";
+import * as Linking from "expo-linking";
 import { useRouter } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
-import * as AuthSession from "expo-auth-session";
-import * as Linking from "expo-linking";
-import Constants from "expo-constants";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import { Alert, Platform, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { supabase } from "./lib/supabase";
 
 WebBrowser.maybeCompleteAuthSession();
@@ -21,7 +22,7 @@ export default function AuthScreen() {
       console.log("⏭️ Already navigated, skipping");
       return;
     }
-    
+
     hasNavigatedRef.current = true;
     setLoading(false);
     console.log("✅ Navigating to profile");
@@ -32,7 +33,7 @@ export default function AuthScreen() {
   useEffect(() => {
     const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log("🔔 Auth state changed:", event, "Session:", !!session);
-      
+
       if (session && event !== 'SIGNED_OUT') {
         navigateToProfile();
       }
@@ -63,7 +64,7 @@ export default function AuthScreen() {
   const showError = useCallback((message: string) => {
     setLoading(false);
     isProcessingAuthRef.current = false;
-    
+
     if (Platform.OS === "web") {
       window.alert(message);
     } else {
@@ -74,7 +75,7 @@ export default function AuthScreen() {
   // Extract auth params from URL (handles both query params and hash fragments)
   const extractAuthParams = (url: string): Record<string, string> => {
     const params: Record<string, string> = {};
-    
+
     try {
       // Parse query parameters
       const parsed = Linking.parse(url);
@@ -113,12 +114,12 @@ export default function AuthScreen() {
     if (params.code) {
       console.log("🔄 Exchanging code for session");
       const { error } = await supabase.auth.exchangeCodeForSession(params.code);
-      
+
       if (error) throw error;
       console.log("✅ Code exchanged successfully");
       return;
     }
-    
+
     // Or set session directly if we have tokens
     if (params.access_token && params.refresh_token) {
       console.log("🔄 Setting session with tokens");
@@ -126,7 +127,7 @@ export default function AuthScreen() {
         access_token: params.access_token,
         refresh_token: params.refresh_token,
       });
-      
+
       if (error) throw error;
       console.log("✅ Session set successfully");
       return;
@@ -146,7 +147,7 @@ export default function AuthScreen() {
     console.log("🔗 Handling auth callback:", url);
 
     const params = extractAuthParams(url);
-    
+
     // Check if we have auth data
     const hasAuthData = params.code || params.access_token || params.error;
     if (!hasAuthData) {
@@ -189,6 +190,54 @@ export default function AuthScreen() {
     };
   }, [handleAuthCallback]);
 
+  const handleAppleSignIn = async () => {
+    if (loading || isProcessingAuthRef.current) {
+      console.log("⏸️ Already loading or processing");
+      return;
+    }
+
+    try {
+      setLoading(true);
+      isProcessingAuthRef.current = true;
+      console.log("🍎 Starting Apple sign in");
+
+      const credential = await AppleAuthentication.signInAsync({
+        requestedScopes: [
+          AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+          AppleAuthentication.AppleAuthenticationScope.EMAIL,
+        ],
+      });
+
+      console.log("🔑 Got Apple credential, exchanging with Supabase");
+
+      if (!credential.identityToken) {
+        throw new Error("No identity token received from Apple");
+      }
+
+      const { error } = await supabase.auth.signInWithIdToken({
+        provider: "apple",
+        token: credential.identityToken,
+      });
+
+      if (error) throw error;
+
+      console.log("✅ Apple sign-in successful");
+      // Session will be picked up by onAuthStateChange listener
+    } catch (error: any) {
+      if (error.code === "ERR_REQUEST_CANCELED") {
+        console.log("👤 User cancelled Apple sign-in");
+        setLoading(false);
+        isProcessingAuthRef.current = false;
+        return;
+      }
+      console.error("❌ Apple sign-in failed:", error);
+      showError(error?.message || "Failed to sign in with Apple");
+    } finally {
+      setLoading(false);
+      isProcessingAuthRef.current = false;
+    }
+  };
+
   const handleGoogleSignIn = async () => {
     if (loading || isProcessingAuthRef.current) {
       console.log("⏸️ Already loading or processing");
@@ -204,7 +253,6 @@ export default function AuthScreen() {
       const redirectUrl = AuthSession.makeRedirectUri({
         scheme: Platform.OS === "web" ? undefined : "flick",
         path: redirectPath,
-        useProxy: Platform.OS !== "web" && isExpoGo,
       });
 
       console.log("🔀 Redirect URL:", redirectUrl);
@@ -254,16 +302,16 @@ export default function AuthScreen() {
       if (result.type === "success" && result.url) {
         console.log("🎯 Got result URL, processing...");
         isProcessingAuthRef.current = true;
-        
+
         try {
           const params = extractAuthParams(result.url);
           console.log("📦 Extracted params:", Object.keys(params));
-          
+
           await processAuthParams(params);
-          
+
           // Give Supabase a moment to set the session
           await new Promise(resolve => setTimeout(resolve, 500));
-          
+
           // Check if session is ready
           const { data: sessionData } = await supabase.auth.getSession();
           if (sessionData?.session) {
@@ -294,7 +342,19 @@ export default function AuthScreen() {
     <View style={styles.container}>
       <View style={styles.card}>
         <Text style={styles.title}>Login or sign up to Flick</Text>
-        <Text style={styles.subtitle}>Securely access your account with Google.</Text>
+        <Text style={styles.subtitle}>Securely access your account.</Text>
+        {Platform.OS === "ios" && (
+          <TouchableOpacity
+            style={[styles.appleButton, loading && styles.buttonDisabled]}
+            onPress={handleAppleSignIn}
+            disabled={loading}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.appleButtonText}>
+              {loading ? "Connecting…" : " Continue with Apple"}
+            </Text>
+          </TouchableOpacity>
+        )}
         <TouchableOpacity
           style={[styles.button, loading && styles.buttonDisabled]}
           onPress={handleGoogleSignIn}
@@ -306,7 +366,7 @@ export default function AuthScreen() {
           </Text>
         </TouchableOpacity>
         <Text style={styles.helperText}>
-          We'll open Google to complete your sign in.
+          Sign in with Apple or Google to continue.
         </Text>
       </View>
     </View>
@@ -348,6 +408,20 @@ const styles = StyleSheet.create({
     marginBottom: 32,
     textAlign: "center",
     fontFamily: "Montserrat-Medium",
+  },
+  appleButton: {
+    backgroundColor: "#000000",
+    borderRadius: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    width: "100%",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  appleButtonText: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontFamily: "Montserrat-Bold",
   },
   button: {
     backgroundColor: "#FF6F3C",
