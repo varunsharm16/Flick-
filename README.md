@@ -1,4 +1,4 @@
-# Flick Basketball Coaching Platform
+# Flick AI
 
 A monorepo containing both the iOS app and the AI coaching backend server.
 
