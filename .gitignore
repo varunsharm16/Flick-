@@ -39,6 +39,24 @@ yarn-error.*
 
 app-example
 
+# generated build output
+/build/
+
 # generated native folders
-/ios
+/ios/*
 /android
+
+# SwiftUI native branch entry points
+!/ios/.gitignore
+!/ios/Podfile
+!/ios/Podfile.lock
+!/ios/Podfile.properties.json
+!/ios/FlickClean.xcworkspace/
+!/ios/FlickClean.xcworkspace/contents.xcworkspacedata
+!/ios/FlickClean.xcodeproj/
+!/ios/FlickClean.xcodeproj/project.pbxproj
+!/ios/FlickClean.xcodeproj/xcshareddata/
+!/ios/FlickClean.xcodeproj/xcshareddata/xcschemes/
+!/ios/FlickClean.xcodeproj/xcshareddata/xcschemes/FlickClean.xcscheme
+!/ios/FlickClean/
+!/ios/FlickClean/**

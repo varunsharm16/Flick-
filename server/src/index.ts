@@ -8,6 +8,7 @@ import { authMiddleware } from "./middleware/authMiddleware";
 
 const ingestRoute = require("./routes/ingest");
 const queryRoute = require("./routes/query");
+const aiRoute = require("./routes/ai");
 
 const app = express();
 const PORT = process.env.PORT || 5050;
@@ -19,7 +20,7 @@ app.use(helmet());
 app.use(cors());
 
 // Body parsing
-app.use(express.json({ limit: '1mb' }));
+app.use(express.json({ limit: '12mb' }));
 
 // Rate limiting: 100 requests per minute per IP
 const limiter = rateLimit({
@@ -39,6 +40,7 @@ app.get("/health", (req, res) => {
 // Protected routes - require authentication
 app.use("/ingest", authMiddleware, ingestRoute);
 app.use("/query", authMiddleware, queryRoute);
+app.use("/ai", authMiddleware, aiRoute);
 
 // Global error handler
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
